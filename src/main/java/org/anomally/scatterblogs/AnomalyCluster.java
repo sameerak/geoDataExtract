@@ -64,7 +64,7 @@ public class AnomalyCluster {
             for (String token: res) {
 //                System.out.println(token);
                 double [] loc = {Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])};
-                extractedTerm tmpTerm = new extractedTerm(token, loc, timestamp, userID, tweetID);
+                extractedTerm tmpTerm = new extractedTerm(token, tweet, loc, timestamp, userID, tweetID);
                 if (!termClusters.containsKey(token)) {
                     termCluster newCluster = new termCluster(tmpTerm);
                     HashSet<termCluster> tmpClusterSet = new HashSet<termCluster>();
@@ -189,7 +189,7 @@ public class AnomalyCluster {
             for (String token: res) {
 //                System.out.println(token);
                 double [] loc = {Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])};
-                extractedTerm tmpTerm = new extractedTerm(token, loc, timestamp, userID, tweetID);
+                extractedTerm tmpTerm = new extractedTerm(token, tweet, loc, timestamp, userID, tweetID);
                 if (!termClusters.containsKey(token)) {
                     termCluster newCluster = new termCluster(tmpTerm);
                     HashSet<termCluster> tmpClusterSet = new HashSet<termCluster>();
