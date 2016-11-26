@@ -293,7 +293,7 @@ public class AnomalyCluster {
 
     private static List<String> tokenizeStopStem(String input) throws IOException {
         if (stop_word_set.isEmpty()) {
-            String fileName = "/home/sameera/Downloads/english.stop.txt";
+            String fileName = "./src/main/resources/english.stop.txt";
 
             BufferedReader br = new BufferedReader(new FileReader(fileName));
             String line;
