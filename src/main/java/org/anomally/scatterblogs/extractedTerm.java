@@ -6,17 +6,23 @@ import java.util.StringTokenizer;
 public class extractedTerm {
 
     private String term;
+    private String text;
     private double[] location;
     private Date timestamp;
     private int userID;
     private double tweetID;
 
-    public extractedTerm (String term, double[] location, Date timestamp, int userID, double tweetID) {
+    public extractedTerm (String term, String text, double[] location, Date timestamp, int userID, double tweetID) {
         this.term = term;
+        this.text = text;
         this.location = location;
         this.timestamp = timestamp;
         this.userID = userID;
         this.tweetID = tweetID;
+    }
+
+    public String getText() {
+        return text;
     }
 
     public double[] getLocation() {
