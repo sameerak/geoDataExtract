@@ -113,6 +113,7 @@ public class plotAnalysis {
         userid = new JTextField("108435619");
         userPanel.add(userid);
         userPanel.add(new JButton(new PlotUserData()));
+        userPanel.add(new JButton(new PlotWordData()));
 
         toolbar.add(userPanel);
 
@@ -593,6 +594,154 @@ public class plotAnalysis {
 
             trajectorylayer = getLayerLineByCoord(coords);
             map.addLayer(trajectorylayer);
+
+            int numInvalid = 1;
+            String msg;
+            if (numInvalid == 0) {
+                msg = "All feature geometries are valid";
+            } else {
+                msg = " Data size = " + dataLength;
+            }
+            JOptionPane.showMessageDialog(null, msg, "Geometry results",
+                    JOptionPane.INFORMATION_MESSAGE);
+        }
+
+        private Layer getLayerLineByCoord(Coordinate[] coords) throws SchemaException {
+            GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+            LineString line = geometryFactory.createLineString(coords);
+            SimpleFeatureType TYPE = DataUtilities.createType("test", "line", "the_geom:LineString");
+            SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder((SimpleFeatureType) TYPE);
+            featureBuilder.add(line);
+            SimpleFeature feature = featureBuilder.buildFeature("LineString_Sample");
+
+            DefaultFeatureCollection lineCollection = new DefaultFeatureCollection();
+            lineCollection.add(feature);
+
+            Style style = SLD.createLineStyle(Color.BLUE, 1);
+            return new FeatureLayer(lineCollection, style);
+        }
+
+
+        /**
+         * Create a Style to draw point features as circles with blue outlines
+         * and cyan fill
+         */
+        private Style createPointStyle() {
+            StyleFactory styleFactory = CommonFactoryFinder.getStyleFactory();
+            FilterFactory filterFactory = CommonFactoryFinder.getFilterFactory();
+            Graphic gr = styleFactory.createDefaultGraphic();
+
+            Mark mark = styleFactory.getCircleMark();
+
+            mark.setStroke(styleFactory.createStroke(
+                    filterFactory.literal(Color.BLUE), filterFactory.literal(1)));
+
+            mark.setFill(styleFactory.createFill(filterFactory.literal(Color.CYAN)));
+
+            gr.graphicalSymbols().clear();
+            gr.graphicalSymbols().add(mark);
+            gr.setSize(filterFactory.literal(5));
+
+        /*
+         * Setting the geometryPropertyName arg to null signals that we want to
+         * draw the default geomettry of features
+         */
+            PointSymbolizer sym = styleFactory.createPointSymbolizer(gr, null);
+
+            Rule rule = styleFactory.createRule();
+            rule.symbolizers().add(sym);
+            FeatureTypeStyle fts = styleFactory.createFeatureTypeStyle(new Rule[]{rule});
+            Style style = styleFactory.createStyle();
+            style.featureTypeStyles().add(fts);
+
+            return style;
+        }
+
+    }
+
+    static class PlotWordData extends SafeAction {
+
+        PlotWordData() {
+            super("Word");
+            putValue(Action.SHORT_DESCRIPTION, "Check each geometry");
+        }
+
+        public void action(ActionEvent e) throws Throwable {
+            Date startDate = startdatePanel.GetDate();
+            Date endDate = enddatePanel.GetDate();
+
+            clearLayers();
+
+            //connecting mongoDB on local machine.
+            MongoClient mongoClient = new MongoClient("localhost", 27017);
+            //connecting to database named test
+            DB db = mongoClient.getDB("test");
+            // getting collection of all files
+            DBCollection collection = db.getCollection("correctTweetId");
+
+            BasicDBObject query = new BasicDBObject();
+            String word = userid.getText();
+            query.put("text", java.util.regex.Pattern.compile(word));
+            query.put("timestamp", BasicDBObjectBuilder.start("$gte", startDate.getTime()).add("$lte", endDate.getTime()).get());
+
+            DBCursor dbCursor = collection.find(query).sort(new BasicDBObject("timestamp", 1));
+
+            SimpleFeatureTypeBuilder b = new SimpleFeatureTypeBuilder();
+
+            b.setName("PlotUserDataFeatureType");
+            b.setCRS(DefaultGeographicCRS.WGS84);
+            b.add("location", Point.class);
+            b.add("text", String.class);
+            b.add("userid", Integer.class);
+            b.add("username", String.class);
+            b.add("created_at", String.class);
+            b.add("tweet_id", Double.class);
+            // building the type
+            final SimpleFeatureType TYPE = b.buildFeatureType();
+
+            SimpleFeatureBuilder featureBuilder;
+            GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+            DefaultFeatureCollection featureCollection = new DefaultFeatureCollection("internal", TYPE);
+
+            int dataLength = dbCursor.count();
+            int count = 0;
+
+            Coordinate[] coords  = new Coordinate[dataLength];
+
+            while (dbCursor.hasNext() /*&& count < 6  && daycount < 3*/) {
+                BasicDBObject basicObject = (BasicDBObject) dbCursor.next();
+
+                String tmp = basicObject.get("coordinates").toString();
+                tmp = tmp.substring(2, tmp.length() - 1);
+//            System.out.println("" + tmp);
+                String[] coordinates = tmp.split(",");
+//                Point point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
+                Coordinate coord = new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1]));
+
+                Point point = geometryFactory.createPoint(coord);
+                coords[count] = coord;
+
+                featureBuilder = new SimpleFeatureBuilder(TYPE);
+                featureBuilder.add(point);
+                featureBuilder.add(basicObject.getString("text"));
+                featureBuilder.add(basicObject.getInt("userid"));
+                featureBuilder.add(basicObject.getString("screen_name"));
+                featureBuilder.add(basicObject.getString("created_at"));
+                featureBuilder.add(basicObject.getLong("tweet_id"));
+
+                SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
+                featureCollection.add(feature);
+                count++;
+            }
+
+            mongoClient.close();
+
+            Style style = createPointStyle();
+            querylayer = new FeatureLayer(featureCollection, style);
+            map.addLayer(querylayer);
+
+//            trajectorylayer = getLayerLineByCoord(coords);
+//            map.addLayer(trajectorylayer);
 
             int numInvalid = 1;
             String msg;
