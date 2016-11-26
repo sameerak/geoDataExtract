@@ -37,7 +37,7 @@ public class AnomalyCluster {
         //connecting to database named test
         DB db = mongoClient.getDB("test");
         // getting collection of all files
-        DBCollection collection = db.getCollection("tweetid");
+        DBCollection collection = db.getCollection("correctTweetId");
 
         BasicDBObject query = new BasicDBObject();
         query.put("timestamp", BasicDBObjectBuilder.start("$gte", startDate.getTime()).add("$lte", endDate.getTime()).get());
@@ -164,7 +164,7 @@ public class AnomalyCluster {
         //connecting to database named test
         DB db = mongoClient.getDB("test");
         // getting collection of all files
-        DBCollection collection = db.getCollection("tweetid");
+        DBCollection collection = db.getCollection("correctTweetId");
 
         BasicDBObject query = new BasicDBObject();
         query.put("timestamp", BasicDBObjectBuilder.start("$gte", start.getTime()).add("$lte", end.getTime()).get());
