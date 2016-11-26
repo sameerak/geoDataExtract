@@ -42,8 +42,8 @@ import java.util.*;
 
 public class plotAnalysis {
     // display a data store file chooser dialog for shapefiles
-    static String WorldMapFile = "/home/sameera/repos/dataExtract/50m_cultural/ne_50m_admin_0_countries.shp";
-    static String roadMapFile = "/home/sameera/repos/dataExtract/ne_10m_roads/ne_10m_roads.shp";
+    static String WorldMapFile = "./src/main/resources/50m_cultural/ne_50m_admin_0_countries.shp";
+    static String roadMapFile = "./src/main/resources/ne_10m_roads/ne_10m_roads.shp";
     static int count = 0;
     static int daycount = 0;
     static DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
