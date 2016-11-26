@@ -822,6 +822,7 @@ public class plotAnalysis {
             b.add("location", Point.class);
             b.add("text", String.class);
             b.add("power", Integer.class);
+            b.add("Score", Float.class);
 //            b.add("username", String.class);
 //            b.add("created_at", String.class);
 //            b.add("tweet_id", Double.class);
@@ -849,6 +850,7 @@ public class plotAnalysis {
                         featureBuilder.add(point);
                         featureBuilder.add(term);
                 featureBuilder.add(clust.getReg().size());
+                featureBuilder.add(clust.getScore());
 //                featureBuilder.add(basicObject.getString("screen_name"));
 //                featureBuilder.add(basicObject.getString("created_at"));
 //                featureBuilder.add(basicObject.getLong("tweet_id"));

@@ -1,5 +1,6 @@
 package org.anomally.scatterblogs;
 
+import java.util.HashMap;
 import java.util.HashSet;
 
 public class termCluster {
@@ -9,6 +10,17 @@ public class termCluster {
     private double[] maxPoint;
     private double[] centroid;
     private HashSet<extractedTerm> reg = new HashSet<extractedTerm>();
+    private HashMap<Integer, Integer> users = new HashMap<Integer, Integer>();
+
+    public HashMap<Integer, Integer> getUsers() {
+        return users;
+    }
+
+    public float getScore() {
+        float score = reg.size()/users.size();
+        return score;
+    }
+
 
     public termCluster(extractedTerm term){
         this.term = term.getTerm();
@@ -16,6 +28,7 @@ public class termCluster {
         minPoint = term.getLocation();
         maxPoint = term.getLocation();
         reg.add(term);
+        users.put(term.getUserID(), 1);
     }
 
     public termCluster(String term, double[] centroid){
@@ -83,6 +96,13 @@ public class termCluster {
 
         //add term to reg
         reg.add(term);
+        if (users.containsKey(term.getUserID())) {
+            int num = users.get(term.getUserID());
+            num++;
+            users.put(term.getUserID(), num);
+        } else {
+            users.put(term.getUserID(), 1);
+        }
     }
 
     private double getWeightedMean (double num1, double num2, int weight){
@@ -101,6 +121,7 @@ public class termCluster {
 
     public void clear() {
         reg.clear();
+        users.clear();
         this.minPoint = centroid;
         this.maxPoint = centroid;
     }
