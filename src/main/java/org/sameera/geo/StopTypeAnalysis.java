@@ -33,7 +33,7 @@ public class StopTypeAnalysis {
 
 
 
-        while (dbCursor.hasNext()/* && count < 100*/) {
+        while (dbCursor.hasNext() && count < 10) {
             BasicDBObject basicObject = (BasicDBObject) dbCursor.next();
 
             BasicDBObject addressObject = (BasicDBObject) basicObject.get("address");

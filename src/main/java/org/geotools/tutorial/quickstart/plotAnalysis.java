@@ -42,8 +42,10 @@ import java.util.*;
 
 public class plotAnalysis {
     // display a data store file chooser dialog for shapefiles
-    static String WorldMapFile = "./src/main/resources/50m_cultural/ne_50m_admin_0_countries.shp";
-    static String roadMapFile = "./src/main/resources/ne_10m_roads/ne_10m_roads.shp";
+    static String WorldMapFile = "." + File.separator + "src" + File.separator + "main" + File.separator + "resources"
+            + File.separator + "50m_cultural" + File.separator + "ne_50m_admin_0_countries.shp";
+    static String roadMapFile = "." + File.separator + "src" + File.separator + "main" + File.separator + "resources"
+            + File.separator + "ne_10m_roads" + File.separator + "ne_10m_roads.shp";
     static int count = 0;
     static int daycount = 0;
     static DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
@@ -371,7 +373,7 @@ public class plotAnalysis {
             //connecting to database named test
             DB db = mongoClient.getDB("test");
             // getting collection of all files
-            DBCollection collection = db.getCollection("tweetid");
+            DBCollection collection = db.getCollection("correctTweetId");
             List<Integer> list = new ArrayList<Integer>();
             list.add(427657635);
             list.add(425795784);
@@ -526,7 +528,7 @@ public class plotAnalysis {
             //connecting to database named test
             DB db = mongoClient.getDB("test");
             // getting collection of all files
-            DBCollection collection = db.getCollection("tweetid");
+            DBCollection collection = db.getCollection("correctTweetId");
 
             BasicDBObject query = new BasicDBObject();
             int useridint = Integer.parseInt(userid.getText());
@@ -677,7 +679,7 @@ public class plotAnalysis {
             //connecting to database named test
             DB db = mongoClient.getDB("test");
             // getting collection of all files
-            DBCollection collection = db.getCollection("tweetid");
+            DBCollection collection = db.getCollection("correctTweetId");
 
             BasicDBObject query = new BasicDBObject();
             String temp = coordinates.getText();
