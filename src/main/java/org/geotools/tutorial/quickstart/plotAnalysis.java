@@ -59,6 +59,7 @@ public class plotAnalysis {
 
     private static HashMap<String, HashSet<termCluster>> termClusters;
 
+
     /**
      * GeoTools Quickstart demo application. Prompts the user for a shapefile and displays its
      * contents on the screen in a map frame
@@ -114,6 +115,7 @@ public class plotAnalysis {
         userPanel.add(userid);
         userPanel.add(new JButton(new PlotUserData()));
         userPanel.add(new JButton(new PlotWordData()));
+        userPanel.add(new JButton(new PlotDeducedTweetLocation()));
 
         toolbar.add(userPanel);
 
@@ -1040,6 +1042,158 @@ public class plotAnalysis {
 
             mark.setStroke(styleFactory.createStroke(
                     filterFactory.literal(Color.BLUE), filterFactory.literal(1)));
+
+            mark.setFill(styleFactory.createFill(filterFactory.literal(Color.RED)));
+
+            gr.graphicalSymbols().clear();
+            gr.graphicalSymbols().add(mark);
+            gr.setSize(filterFactory.literal(5));
+
+        /*
+         * Setting the geometryPropertyName arg to null signals that we want to
+         * draw the default geomettry of features
+         */
+            PointSymbolizer sym = styleFactory.createPointSymbolizer(gr, null);
+
+            Rule rule = styleFactory.createRule();
+            rule.symbolizers().add(sym);
+            FeatureTypeStyle fts = styleFactory.createFeatureTypeStyle(new Rule[]{rule});
+            Style style = styleFactory.createStyle();
+            style.featureTypeStyles().add(fts);
+
+            return style;
+        }
+
+    }
+
+
+    static class PlotDeducedTweetLocation extends SafeAction {
+
+        PlotDeducedTweetLocation() {
+            super("Deduce");
+            putValue(Action.SHORT_DESCRIPTION, "Check each geometry");
+        }
+
+        public void action(ActionEvent e) throws Throwable {
+            Date startDate = startdatePanel.GetDate();
+            Date endDate = enddatePanel.GetDate();
+
+            long tweetID = Long.parseLong(userid.getText());
+
+            if (querylayer != null) {
+                map.removeLayer(querylayer);
+            }
+
+            if (termClusters == null) {
+                termClusters = AnomalyCluster.getAnomalyset(startDate, endDate);
+//                termClusters = AnomalyCluster.getAnomalyset(startDate, endDate);
+            }
+
+            //connecting mongoDB on local machine.
+            MongoClient mongoClient = new MongoClient("localhost", 27017);
+            //connecting to database named test
+            DB db = mongoClient.getDB("test");
+            // getting collection of all files
+            DBCollection collection = db.getCollection("correctTweetId");
+
+            BasicDBObject query = new BasicDBObject();
+            query.put("tweet_id", tweetID);
+
+            DBCursor dbCursor = collection.find(query).sort(new BasicDBObject("timestamp", 1));
+
+            BasicDBObject basicObject;
+            if (dbCursor.hasNext() /*&& count < 6  && daycount < 3*/) {
+
+                basicObject = (BasicDBObject) dbCursor.next();
+            } else {
+                System.out.println("there is no data record of id = " + tweetID);
+                return;
+            }
+
+            String text = basicObject.getString("text");
+            List<String> result = AnomalyCluster.tokenizeStopStem(text);
+
+            HashMap<String, HashSet<termCluster>> subset = new HashMap<String, HashSet<termCluster>>();
+
+            for (String term: result) {
+                if (termClusters.containsKey(term)) {
+                    subset.put(term, (HashSet<termCluster>) termClusters.get(term).clone());
+                }
+            }
+
+            int all = AnomalyCluster.getNumOfAnalyzedDocs();
+
+            System.out.println(" id = " + tweetID + ", text = " + text + ", NumOfAnalyzedDocs = " + all);
+
+
+            SimpleFeatureTypeBuilder b = new SimpleFeatureTypeBuilder();
+
+            b.setName("PlotUserDataFeatureType");
+            b.setCRS(DefaultGeographicCRS.WGS84);
+            b.add("location", Point.class);
+            b.add("text", String.class);
+            b.add("power", Integer.class);
+            b.add("Score", Float.class);
+//            b.add("username", String.class);
+//            b.add("created_at", String.class);
+//            b.add("tweet_id", Double.class);
+            // building the type
+            final SimpleFeatureType TYPE = b.buildFeatureType();
+
+            SimpleFeatureBuilder featureBuilder;
+            GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+            DefaultFeatureCollection featureCollection = new DefaultFeatureCollection("internal", TYPE);
+
+            int dataLength = termClusters.size();
+            int count = 0;
+
+//            for (String term: termClusters.keySet()) {
+//                for (termCluster clust: termClusters.get(term)) {
+//                    if (clust.getReg().size() > power) {
+//                        Point point = geometryFactory.createPoint(new Coordinate(clust.getCentroid()[0], clust.getCentroid()[1]));
+//
+//                        featureBuilder = new SimpleFeatureBuilder(TYPE);
+//                        featureBuilder.add(point);
+//                        featureBuilder.add(term);
+//                        featureBuilder.add(clust.getReg().size());
+//                        featureBuilder.add(clust.getScore());
+//
+//                        SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
+//                        featureCollection.add(feature);
+//                        count++;
+//                    }
+//                }
+//            }
+
+            Style style = createPointStyle(Color.green);
+            querylayer = new FeatureLayer(featureCollection, style);
+            map.addLayer(querylayer);
+
+            int numInvalid = 1;
+            String msg;
+            if (numInvalid == 0) {
+                msg = "All feature geometries are valid";
+            } else {
+                msg = " Data size = " + dataLength;
+            }
+            JOptionPane.showMessageDialog(null, msg, "Geometry results",
+                    JOptionPane.INFORMATION_MESSAGE);
+        }
+
+
+        /**
+         * Create a Style to draw point features as circles with blue outlines
+         * and cyan fill
+         */
+        private Style createPointStyle(Color fillColor) {
+            StyleFactory styleFactory = CommonFactoryFinder.getStyleFactory();
+            FilterFactory filterFactory = CommonFactoryFinder.getFilterFactory();
+            Graphic gr = styleFactory.createDefaultGraphic();
+
+            Mark mark = styleFactory.getCircleMark();
+
+            mark.setStroke(styleFactory.createStroke(
+                    filterFactory.literal(fillColor), filterFactory.literal(1)));
 
             mark.setFill(styleFactory.createFill(filterFactory.literal(Color.RED)));
 
