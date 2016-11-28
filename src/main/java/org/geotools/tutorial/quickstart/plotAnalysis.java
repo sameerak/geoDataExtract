@@ -1075,6 +1075,8 @@ public class plotAnalysis {
         }
 
         public void action(ActionEvent e) throws Throwable {
+            clearLayers();
+
             Date startDate = startdatePanel.GetDate();
             Date endDate = enddatePanel.GetDate();
 
@@ -1115,13 +1117,42 @@ public class plotAnalysis {
 
             HashMap<String, HashSet<termCluster>> subset = new HashMap<String, HashSet<termCluster>>();
 
+            HashMap<String, Float> termScores = new HashMap<String, Float>();
+            int all = AnomalyCluster.getNumOfAnalyzedDocs();
+            float max_score = (float) 0.0;
+            String max_term = "";
+
             for (String term: result) {
                 if (termClusters.containsKey(term)) {
                     subset.put(term, (HashSet<termCluster>) termClusters.get(term).clone());
+                    float noOfDoc = 0;
+                    for (termCluster clust: termClusters.get(term)) {
+//                System.out.println("terms = " + clust.getReg().size());
+//                System.out.println("terms = " + clust.getReg().size() + ", centroid = [" + clust.getCentroid()[0] + "," + clust.getCentroid()[1] + "]");
+                        noOfDoc += clust.getReg().size();
+                    }
+//            float docFreq = noOfDoc / 16893;
+                    float docFreq = all / noOfDoc;
+
+                    if (max_score < docFreq) {
+                        max_score = docFreq;
+                        max_term = term;
+                    }
+
+                    termScores.put(term, docFreq);
                 }
             }
 
-            int all = AnomalyCluster.getNumOfAnalyzedDocs();
+            double[] centroid;
+            int largest = 0;
+
+            for (termCluster cluster: subset.get(max_term)) {
+                if (cluster.getReg().size() > largest) {
+                    largest = cluster.getReg().size();
+                    centroid = cluster.getCentroid();
+                }
+
+            }
 
             System.out.println(" id = " + tweetID + ", text = " + text + ", NumOfAnalyzedDocs = " + all);
 
@@ -1147,27 +1178,48 @@ public class plotAnalysis {
             int dataLength = termClusters.size();
             int count = 0;
 
-//            for (String term: termClusters.keySet()) {
-//                for (termCluster clust: termClusters.get(term)) {
-//                    if (clust.getReg().size() > power) {
-//                        Point point = geometryFactory.createPoint(new Coordinate(clust.getCentroid()[0], clust.getCentroid()[1]));
-//
-//                        featureBuilder = new SimpleFeatureBuilder(TYPE);
-//                        featureBuilder.add(point);
-//                        featureBuilder.add(term);
-//                        featureBuilder.add(clust.getReg().size());
-//                        featureBuilder.add(clust.getScore());
-//
-//                        SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
-//                        featureCollection.add(feature);
-//                        count++;
-//                    }
-//                }
-//            }
+            for (String term : subset.keySet()) {
+                for (termCluster clust : subset.get(term)) {
+                    Point point = geometryFactory.createPoint(new Coordinate(clust.getCentroid()[0], clust.getCentroid()[1]));
+
+                    featureBuilder = new SimpleFeatureBuilder(TYPE);
+                    featureBuilder.add(point);
+                    featureBuilder.add(max_term);
+                    featureBuilder.add(clust.getReg().size());
+                    featureBuilder.add(clust.getScore());
+
+                    SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
+                    featureCollection.add(feature);
+                    count++;
+                }
+            }
 
             Style style = createPointStyle(Color.green);
             querylayer = new FeatureLayer(featureCollection, style);
             map.addLayer(querylayer);
+
+            DefaultFeatureCollection correct_featureCollection = new DefaultFeatureCollection("internal", TYPE);
+
+            String tmp = basicObject.get("coordinates").toString();
+            tmp = tmp.substring(2, tmp.length() - 1);
+//            System.out.println("" + tmp);
+            String[] coordinates = tmp.split(",");
+//                Point point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
+            Coordinate coord = new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1]));
+
+            Point point = geometryFactory.createPoint(coord);
+            featureBuilder = new SimpleFeatureBuilder(TYPE);
+            featureBuilder.add(point);
+            featureBuilder.add("Correct : " + max_term);
+            featureBuilder.add(1000);
+            featureBuilder.add(1000);
+
+            Style style1 = createPointStyle(Color.red);
+            SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
+            correct_featureCollection.add(feature);
+
+            trajectorylayer = new FeatureLayer(correct_featureCollection, style1);
+            map.addLayer(trajectorylayer);
 
             int numInvalid = 1;
             String msg;
