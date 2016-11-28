@@ -61,7 +61,12 @@ public class AnomalyCluster {
             List<String> res = tokenizeStopStem(tweet);
 //            System.out.println(res);
 
-            for (String token: res) {
+            for (int i = 0; i < res.size(); i++) {
+                String token = res.get(i);
+
+                if (i != (res.size() - 1)) {
+                    token = res.get(i) + " " + res.get(i + 1);
+                }
 //                System.out.println(token);
                 double [] loc = {Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])};
                 extractedTerm tmpTerm = new extractedTerm(token, tweet, loc, timestamp, userID, tweetID);
@@ -186,7 +191,12 @@ public class AnomalyCluster {
             List<String> res = tokenizeStopStem(tweet);
 //            System.out.println(res);
 
-            for (String token: res) {
+            for (int i = 0; i < res.size(); i++) {
+                String token = res.get(i);
+
+                if (i != (res.size() - 1)) {
+                    token = res.get(i) + " " + res.get(i + 1);
+                }
 //                System.out.println(token);
                 double [] loc = {Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])};
                 extractedTerm tmpTerm = new extractedTerm(token, tweet, loc, timestamp, userID, tweetID);
