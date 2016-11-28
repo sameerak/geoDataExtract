@@ -18,8 +18,13 @@ import org.apache.lucene.util.*;
 
 public class AnomalyCluster {
 
+    private static int numOfAnalyzedDocs = 0;
     private static HashSet<String> stop_word_set = new HashSet<String>();
     private static HashMap<String, HashSet<termCluster>> termClusters = new HashMap<String, HashSet<termCluster>>();
+
+    public static int getNumOfAnalyzedDocs() {
+        return numOfAnalyzedDocs;
+    }
 
     public static void main(String[] args) throws Exception {
         int count = 0;
@@ -175,6 +180,7 @@ public class AnomalyCluster {
         query.put("timestamp", BasicDBObjectBuilder.start("$gte", start.getTime()).add("$lte", end.getTime()).get());
 
         DBCursor dbCursor = collection.find(query).sort(new BasicDBObject("timestamp", 1));
+        numOfAnalyzedDocs = dbCursor.count();
 
         while (dbCursor.hasNext() /*&& count < 6  && daycount < 3*/) {
             BasicDBObject basicObject = (BasicDBObject) dbCursor.next();
@@ -301,7 +307,7 @@ public class AnomalyCluster {
         return lat * lat + longi * longi;
     }
 
-    private static List<String> tokenizeStopStem(String input) throws IOException {
+    public static List<String> tokenizeStopStem(String input) throws IOException {
         if (stop_word_set.isEmpty()) {
             String fileName = "." + File.separator + "src" + File.separator + "main" + File.separator + "resources" +
                     File.separator + "english.stop.txt";
