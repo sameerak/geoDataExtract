@@ -3,6 +3,10 @@ package org.sameera.geo;
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
+import org.anomally.scatterblogs.AnomalyCluster;
+
+import java.io.IOException;
+import java.util.List;
 
 /**
  * Unit test for simple App.
@@ -31,8 +35,13 @@ public class AppTest
     /**
      * Rigourous Test :-)
      */
-    public void testApp()
-    {
+    public void testApp() throws IOException {
+        String data = "@IzzyFolau good luck this week! Hunty showed what you league boys are capable of." +
+                " Prove the haters wrong. #giants #gamechanger";
+        List<String> result = AnomalyCluster.tokenizeStopStem(data);
+        for (String token : result) {
+            System.out.println(token);
+        }
         assertTrue( true );
     }
 }
