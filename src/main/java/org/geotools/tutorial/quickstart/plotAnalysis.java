@@ -39,6 +39,7 @@ import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.regex.Pattern;
 
 public class plotAnalysis {
     // display a data store file chooser dialog for shapefiles
@@ -683,7 +684,7 @@ public class plotAnalysis {
 
             BasicDBObject query = new BasicDBObject();
             String word = userid.getText();
-            query.put("text", java.util.regex.Pattern.compile(word));
+            query.put("text", Pattern.compile(word, Pattern.CASE_INSENSITIVE));
             query.put("timestamp", BasicDBObjectBuilder.start("$gte", startDate.getTime()).add("$lte", endDate.getTime()).get());
 
             DBCursor dbCursor = collection.find(query).sort(new BasicDBObject("timestamp", 1));
@@ -1065,7 +1066,6 @@ public class plotAnalysis {
         }
 
     }
-
 
     static class PlotDeducedTweetLocation extends SafeAction {
 
