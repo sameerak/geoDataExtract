@@ -48,7 +48,7 @@ public class TweetAnalysis {
             + SMILEY_REGEX_PATTERN.pattern() + "|" + FROWNY_REGEX_PATTERN.pattern() + "|"
             + HTML_REGEX_PATTERN.pattern() + "|" + URL_REGEX_PATTERN.pattern() + "|"
             + NUMBERS_REGEX_PATTERN.pattern() + "|" + WORDS_WITH_SPECIAL_REGEX_PATTERN.pattern() + "|"
-            + OTHER_WORDS_REGEX_PATTERN.pattern() + "|" + ANYTHING_REGEX_PATTERN.pattern()
+            + OTHER_WORDS_REGEX_PATTERN.pattern()/* + "|" + ANYTHING_REGEX_PATTERN.pattern()*/
             + "");
 
 
