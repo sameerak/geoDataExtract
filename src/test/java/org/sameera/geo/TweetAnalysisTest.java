@@ -6,6 +6,11 @@ import junit.framework.TestCase;
 import junit.framework.TestSuite;
 import org.word.analysis.TweetAnalysis;
 
+import java.io.IOException;
+import java.io.StringReader;
+import java.util.List;
+import java.util.regex.Pattern;
+
 public class TweetAnalysisTest
         extends TestCase {
 
@@ -35,6 +40,16 @@ public class TweetAnalysisTest
         String data = "@IzzyFolau good luck this week! Hunty showed what you league boys are capable of." +
                 " Prove the haters wrong. #giants #gamechanger";
         String[] result = TweetAnalysis.TokenizeTweet(data);
+        for (String token : result) {
+            System.out.println(token);
+        }
+        assertTrue( true );
+    }
+
+    public void testEmoticonTokenization() throws IOException {
+        String data = "@jessieslife jessie !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! :-p";
+        data = "I'm at Air New Zealand Domestic Lounge (Christchurch, Canterbury) http://t.co/9MwDtEyp";
+        List<String> result = TweetAnalysis.tokenizeStopStem(data);
         for (String token : result) {
             System.out.println(token);
         }
