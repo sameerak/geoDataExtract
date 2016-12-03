@@ -12,10 +12,13 @@ import java.util.*;
 
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.WhitespaceTokenizer;
+import org.apache.lucene.analysis.pattern.PatternTokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.util.*;
+
+import static org.word.analysis.TweetAnalysis.TWEET_REGEX_PATTERN;
 
 public class AnomalyCluster {
 
@@ -375,7 +378,9 @@ public class AnomalyCluster {
 
 //        new WhitespaceTokenizer()
 //        TokenStream tokenStream = new StandardTokenizer(Version.LUCENE_36, new StringReader(input));
-        TokenStream tokenStream = new MyCustomTokenizer(Version.LUCENE_36, new StringReader(input));
+//        TokenStream tokenStream = new MyCustomTokenizer(Version.LUCENE_36, new StringReader(input));
+        TokenStream tokenStream = new PatternTokenizer(new StringReader(input), TWEET_REGEX_PATTERN, 0);
+        tokenStream.reset();
         tokenStream = new StopFilter(Version.LUCENE_36, tokenStream, stop_word_set);
 //        tokenStream = new PorterStemFilter(tokenStream);
 
