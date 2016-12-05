@@ -26,6 +26,7 @@ import org.geotools.tutorial.quickstart.util.WrapLayout;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.FilterFactory;
+import org.opengis.filter.FilterFactory2;
 
 import javax.swing.*;
 import java.awt.Component;
@@ -56,6 +57,7 @@ public class plotAnalysis {
     static MapContent map;
     static Layer querylayer = null;
     static Layer trajectorylayer = null;
+    static Layer userlayer = null;
     private static JTextField coordinates;
 
     private static HashMap<String, HashSet<termCluster>> termClusters;
@@ -211,6 +213,9 @@ public class plotAnalysis {
         }
         if (trajectorylayer != null) {
             map.removeLayer(trajectorylayer);
+        }
+        if (userlayer != null) {
+            map.removeLayer(userlayer);
         }
     }
 
@@ -849,6 +854,7 @@ public class plotAnalysis {
             b.setCRS(DefaultGeographicCRS.WGS84);
             b.add("location", Point.class);
             b.add("text", String.class);
+            b.add("color", String.class);
             b.add("userid", Integer.class);
             b.add("username", String.class);
             b.add("created_at", String.class);
@@ -878,6 +884,7 @@ public class plotAnalysis {
                 featureBuilder = new SimpleFeatureBuilder(TYPE);
                 featureBuilder.add(point);
                 featureBuilder.add(basicObject.getString("text"));
+                featureBuilder.add(Color.BLACK);
                 featureBuilder.add(basicObject.getInt("userid"));
                 featureBuilder.add(basicObject.getString("screen_name"));
                 featureBuilder.add(basicObject.getString("created_at"));
@@ -920,11 +927,13 @@ public class plotAnalysis {
             mark.setStroke(styleFactory.createStroke(
                     filterFactory.literal(Color.BLUE), filterFactory.literal(1)));
 
-            mark.setFill(styleFactory.createFill(filterFactory.literal(Color.CYAN)));
+            StyleBuilder sb = new StyleBuilder();
+            mark.setFill(styleFactory.createFill(/*filterFactory.literal(Color.CYAN)*/
+                    sb.attributeExpression("color")));
 
             gr.graphicalSymbols().clear();
             gr.graphicalSymbols().add(mark);
-            gr.setSize(filterFactory.literal(5));
+            gr.setSize(filterFactory.literal(15));
 
         /*
          * Setting the geometryPropertyName arg to null signals that we want to
@@ -973,6 +982,7 @@ public class plotAnalysis {
             b.setCRS(DefaultGeographicCRS.WGS84);
             b.add("location", Point.class);
             b.add("text", String.class);
+            b.add("color", String.class);
             b.add("power", Integer.class);
             b.add("Score", Float.class);
 //            b.add("username", String.class);
@@ -1001,6 +1011,7 @@ public class plotAnalysis {
                         featureBuilder = new SimpleFeatureBuilder(TYPE);
                         featureBuilder.add(point);
                         featureBuilder.add(term);
+                        featureBuilder.add((clust.getReg().size() % 2 == 0) ? Color.red : Color.green);
                 featureBuilder.add(clust.getReg().size());
                 featureBuilder.add(clust.getScore());
 //                featureBuilder.add(basicObject.getString("screen_name"));
@@ -1044,7 +1055,9 @@ public class plotAnalysis {
             mark.setStroke(styleFactory.createStroke(
                     filterFactory.literal(Color.BLUE), filterFactory.literal(1)));
 
-            mark.setFill(styleFactory.createFill(filterFactory.literal(Color.RED)));
+            StyleBuilder sb = new StyleBuilder();
+            mark.setFill(styleFactory.createFill(/*filterFactory.literal(Color.CYAN)*/
+                    sb.attributeExpression("color")));
 
             gr.graphicalSymbols().clear();
             gr.graphicalSymbols().add(mark);
@@ -1082,9 +1095,6 @@ public class plotAnalysis {
 
             long tweetID = Long.parseLong(userid.getText());
 
-            if (querylayer != null) {
-                map.removeLayer(querylayer);
-            }
 
             if (termClusters == null) {
                 termClusters = AnomalyCluster.getAnomalyset(startDate, endDate);
@@ -1105,13 +1115,90 @@ public class plotAnalysis {
 
             BasicDBObject basicObject;
             if (dbCursor.hasNext() /*&& count < 6  && daycount < 3*/) {
-
                 basicObject = (BasicDBObject) dbCursor.next();
             } else {
                 System.out.println("there is no data record of id = " + tweetID);
                 return;
             }
 
+            //use user's previous locations to deduce user location.
+            int userid = basicObject.getInt("userid");
+            HashSet<termCluster> user_locations = termClusters.get("user_" + userid);
+
+            SimpleFeatureTypeBuilder b1 = new SimpleFeatureTypeBuilder();
+
+            b1.setName("PlotUserDataFeatureType");
+            b1.setCRS(DefaultGeographicCRS.WGS84);
+            b1.add("location", Point.class);
+            b1.add("color", String.class);
+            b1.add("userid", Integer.class);
+            b1.add("size", Integer.class);
+//            b.add("username", String.class);
+//            b.add("created_at", String.class);
+//            b.add("tweet_id", Double.class);
+            // building the type
+            final SimpleFeatureType TYPE1 = b1.buildFeatureType();
+
+            SimpleFeatureBuilder featureBuilder1 = new SimpleFeatureBuilder(TYPE1);
+            GeometryFactory geometryFactory1 = JTSFactoryFinder.getGeometryFactory();
+            DefaultFeatureCollection featureCollection1 = new DefaultFeatureCollection("internal", TYPE1);
+
+            if (!user_locations.isEmpty()) {
+                int max = 0;
+                double[] max_centroid = new double[2];
+                for (termCluster cluster : user_locations) {
+                    if (max < cluster.getReg().size()) {
+                        max = cluster.getReg().size();
+                        max_centroid = cluster.getCentroid();
+                    }
+                    Point point = geometryFactory1.createPoint(new Coordinate(cluster.getCentroid()[0], cluster.getCentroid()[1]));
+
+                    featureBuilder1.add(point);
+                    featureBuilder1.add(Color.CYAN);
+                    featureBuilder1.add(userid);
+                    featureBuilder1.add(10);
+
+                    SimpleFeature feature = featureBuilder1.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
+                    featureCollection1.add(feature);
+                    count++;
+                }
+
+                Point point = geometryFactory1.createPoint(new Coordinate(max_centroid[0], max_centroid[1]));
+
+                featureBuilder1.add(point);
+                featureBuilder1.add(Color.red);
+                featureBuilder1.add(userid);
+                featureBuilder1.add(5);
+
+                SimpleFeature feature = featureBuilder1.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
+                featureCollection1.add(feature);
+
+                count++;
+
+                String tmp = basicObject.get("coordinates").toString();
+                tmp = tmp.substring(2, tmp.length() - 1);
+//            System.out.println("" + tmp);
+                String[] coordinates = tmp.split(",");
+//                Point point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
+                Coordinate coord = new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1]));
+
+                Point point1 = geometryFactory1.createPoint(coord);
+
+                featureBuilder1.add(point1);
+                featureBuilder1.add(Color.green);
+                featureBuilder1.add(userid);
+                featureBuilder1.add(5);
+
+                SimpleFeature feature1 = featureBuilder1.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
+                featureCollection1.add(feature1);
+
+                Style style1 = createPointStyle(Color.black);
+                userlayer = new FeatureLayer(featureCollection1, style1);
+                map.addLayer(userlayer);
+                return;
+            }
+
+            //use text to deduce tweet location
             String text = basicObject.getString("text");
             List<String> result = AnomalyCluster.tokenizeStopStem(text);
 
@@ -1214,11 +1301,11 @@ public class plotAnalysis {
             featureBuilder.add(1000);
             featureBuilder.add(1000);
 
-            Style style1 = createPointStyle(Color.red);
+            Style style3 = createPointStyle(Color.red);
             SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
             correct_featureCollection.add(feature);
 
-            trajectorylayer = new FeatureLayer(correct_featureCollection, style1);
+            trajectorylayer = new FeatureLayer(correct_featureCollection, style3);
             map.addLayer(trajectorylayer);
 
             int numInvalid = 1;
@@ -1247,11 +1334,14 @@ public class plotAnalysis {
             mark.setStroke(styleFactory.createStroke(
                     filterFactory.literal(fillColor), filterFactory.literal(1)));
 
-            mark.setFill(styleFactory.createFill(filterFactory.literal(Color.RED)));
+            StyleBuilder sb = new StyleBuilder();
+            FilterFactory2 ff = sb.getFilterFactory();
+            mark.setFill(styleFactory.createFill(/*filterFactory.literal(Color.CYAN)*/
+                    sb.attributeExpression("color")));
 
             gr.graphicalSymbols().clear();
             gr.graphicalSymbols().add(mark);
-            gr.setSize(filterFactory.literal(5));
+            gr.setSize(ff.property("size"));
 
         /*
          * Setting the geometryPropertyName arg to null signals that we want to
