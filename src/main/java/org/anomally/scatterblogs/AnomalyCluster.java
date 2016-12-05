@@ -39,7 +39,7 @@ public class AnomalyCluster {
 
         Date startDate = df.parse("Sat Mar 06 00:00:00 +0000 2012");
         Date endDate = df.parse("Mon Apr 23 00:00:00 +0000 2012");
-//        Date endDate = df.parse("Sat Mar 07 00:00:00 +0000 2012");
+//        Date endDate = df.parse("Sat Mar 13 00:00:00 +0000 2012");
 
         //connecting mongoDB on local machine.
         MongoClient mongoClient = new MongoClient("localhost", 27017);
@@ -66,42 +66,17 @@ public class AnomalyCluster {
             int userID = basicObject.getInt("userid");
             double tweetID = basicObject.getDouble("tweet_id");
 
-//            List<String> res = Twokenize.tokenizeRawTweetText(tweet);
-
-            String url = "";
-            if (tweet.contains("http://t.co")) {
-                int start, end = 0;
-                start = tweet.indexOf("http://t.co");
-                url = tweet.substring(start);
-                if (url.indexOf(" ") != -1) {
-                    end = url.indexOf(" ");
-                    url = url.substring(end);
-                    end = start + end;
-                }
-                String prefix = tweet.substring(0, start);
-                if (end != 0) {
-                    tweet = prefix + tweet.substring(end);
-                } else {
-                    tweet = prefix;
-                }
-            }
-
             List<String> res = tokenizeStopStem(tweet);
-
-            if (!"".equals(url)) {
-                System.out.println("url = " + url);
-                System.out.println("tweet = " + tweet);
-                res.add(url);
-            }
-//            System.out.println(res);
 
             for (int i = 0; i < res.size(); i++) {
                 String token = res.get(i);
 
-                if (i != (res.size() - 1)) {
-                    token = res.get(i) + " " + res.get(i + 1);
-                }
+                //process bi grams instead of uni grams
+//                if (i != (res.size() - 1)) {
+//                    token = res.get(i) + " " + res.get(i + 1);
+//                }
 //                System.out.println(token);
+
                 double [] loc = {Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])};
                 extractedTerm tmpTerm = new extractedTerm(token, tweet, loc, timestamp, userID, tweetID);
                 if (!termClusters.containsKey(token)) {
@@ -159,39 +134,42 @@ public class AnomalyCluster {
 
 
         }
-//        String processedfileName = "/home/sameera/repos/au_geo_data/AUgeo_important_words.csv";
-//        BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(processedfileName)));
+        String processedfileName = "/home/sameera/repos/au_geo_data/AUgeo_patternimportant_words.csv";
+        BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(processedfileName)));
 
 
         System.out.println("Calculating docFreq@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
         float maxnoOfDoc = all;
         String maxTerm = "";
 
-//        for (String term: termClusters.keySet()) {
-////            System.out.println("term = " + term);
-//            float noOfDoc = 0;
-//            for (termCluster clust: termClusters.get(term)) {
-////                System.out.println("terms = " + clust.getReg().size());
-////                System.out.println("terms = " + clust.getReg().size() + ", centroid = [" + clust.getCentroid()[0] + "," + clust.getCentroid()[1] + "]");
-//                noOfDoc += clust.getReg().size();
-//            }
-//            if (noOfDoc < maxnoOfDoc) {
-//                maxnoOfDoc = noOfDoc;
-//                maxTerm = term;
-//            }
-////            float docFreq = noOfDoc / 16893;
-//            float docFreq = all / noOfDoc;
+        for (String term: termClusters.keySet()) {
+//            System.out.println("term = " + term);
+            float noOfDoc = 0;
+            String clusters = "";
+            for (termCluster clust: termClusters.get(term)) {
+//                System.out.println("terms = " + clust.getReg().size());
+//                System.out.println("terms = " + clust.getReg().size() + ", centroid = [" + clust.getCentroid()[0] + "," + clust.getCentroid()[1] + "]");
+                clusters = clusters + "," +  clust.getCentroid()[0]+ "#" +clust.getCentroid()[1] + "," + clust.getReg().size() + "," + clust.getScore();
+                noOfDoc += clust.getReg().size();
+            }
+            if (noOfDoc < maxnoOfDoc) {
+                maxnoOfDoc = noOfDoc;
+                maxTerm = term;
+            }
+//            float docFreq = noOfDoc / 16893;
+            float docFreq = all / noOfDoc;
 //            if (100000 > docFreq && docFreq > 25) {
-//                System.out.println("term = " + term + ", docFreq = " + docFreq);
-//                String data = term + "," + docFreq;
-//                bw.write(data);
-//                bw.newLine();
+
+                System.out.println("term = " + term + ", docFreq = " + docFreq);
+                String data = term.replace(',','.') + "," + docFreq + "," + noOfDoc + clusters;
+                bw.write(data);
+                bw.newLine();
 //            }
-//        }
-//
-//        bw.close();
-//        float docFreq = all / maxnoOfDoc;
-//        System.out.println("max term = " + maxTerm + ", docFreq = " + docFreq);
+        }
+
+        bw.close();
+        float docFreq = all / maxnoOfDoc;
+        System.out.println("max term = " + maxTerm + ", docFreq = " + docFreq);
 
     }
 
