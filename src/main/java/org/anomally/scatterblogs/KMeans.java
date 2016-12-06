@@ -1,6 +1,7 @@
 package org.anomally.scatterblogs;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 
@@ -29,8 +30,8 @@ public class KMeans {
 //        }
         this.clusters = new ArrayList<termCluster>(2);
 
-        termCluster maxcluster = new termCluster(splitCluster.getTerm(), splitCluster.getMaxPoint());
-        termCluster mincluster = new termCluster(splitCluster.getTerm(), splitCluster.getMinPoint());
+        termCluster maxcluster = new termCluster(splitCluster.getTerm(), splitCluster.getMaxPoint(), splitCluster.getMaxTime());
+        termCluster mincluster = new termCluster(splitCluster.getTerm(), splitCluster.getMinPoint(), splitCluster.getMinTime());
         clusters.add(maxcluster);
         clusters.add(mincluster);
     }
@@ -97,7 +98,7 @@ public class KMeans {
             //Calculates total distance between new and old Centroids
             double distance = 0;
             for(int i = 0; i < lastCentroids.size(); i++) {
-                distance += getDistance(lastCentroids.get(i),currentCentroids.get(i));
+                distance += getDistance(lastCentroids.get(i),currentCentroids.get(i), lastCentroids.get(i)[2]);
             }
 //            System.out.println("#################");
 //            System.out.println("Iteration: " + iteration);
@@ -124,7 +125,10 @@ public class KMeans {
     private List getCentroids() {
         List centroids = new ArrayList<double[]>(NUM_CLUSTERS);
         for(termCluster cluster : clusters) {
-            double[] aux = cluster.getCentroid();
+            double[] aux = new double[3];
+            aux[0] = cluster.getCentroid()[0];
+            aux[1] = cluster.getCentroid()[1];
+            aux[2] = cluster.getTimeCentroid().getTime();
             centroids.add(aux);
         }
         return centroids;
@@ -145,7 +149,8 @@ public class KMeans {
 //                    cluster = i;
 //                }
 //            }
-            if (getDistance(point.getLocation(), lastCentroids.get(0)) < getDistance(point.getLocation(), lastCentroids.get(1))) {
+            if (getDistance(point.getLocation(), lastCentroids.get(0), point.getTimestamp().getTime())
+                    < getDistance(point.getLocation(), lastCentroids.get(1), point.getTimestamp().getTime())) {
                 clusters.get(0).addTerm(point);
             }
             else {
@@ -179,10 +184,11 @@ public class KMeans {
         }
     }
 
-    private static double getDistance(double[] p1, double[] p2) {
+    private static double getDistance(double[] p1, double[] p2, double d1) {
         double lat = p1[0] - p2[0];
         double longi = p1[1] - p2[1];
+        double time = d1 - p2[2];
 
-        return Math.sqrt(lat * lat + longi * longi);
+        return Math.sqrt(lat * lat + longi * longi + time * time);
     }
 }

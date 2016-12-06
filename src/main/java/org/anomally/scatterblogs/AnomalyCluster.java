@@ -38,8 +38,8 @@ public class AnomalyCluster {
         DateFormat df = new SimpleDateFormat("EEE MMM dd HH:mm:ss ZZZZZ yyyy");
 
         Date startDate = df.parse("Sat Mar 06 00:00:00 +0000 2012");
-        Date endDate = df.parse("Mon Apr 23 00:00:00 +0000 2012");
-//        Date endDate = df.parse("Sat Mar 13 00:00:00 +0000 2012");
+//        Date endDate = df.parse("Mon Apr 23 00:00:00 +0000 2012");
+        Date endDate = df.parse("Sat Mar 13 00:00:00 +0000 2012");
 
         termClusters = getAnomalyset(startDate, endDate);
 
@@ -57,7 +57,7 @@ public class AnomalyCluster {
             for (termCluster clust: termClusters.get(term)) {
 //                System.out.println("terms = " + clust.getReg().size());
 //                System.out.println("terms = " + clust.getReg().size() + ", centroid = [" + clust.getCentroid()[0] + "," + clust.getCentroid()[1] + "]");
-                clusters = clusters + "," +  clust.getCentroid()[0]+ "#" +clust.getCentroid()[1] + "," + clust.getReg().size() + "," + clust.getScore();
+                clusters = clusters + "," +  clust.getCentroid()[0]+ "#" +clust.getCentroid()[1]+ "$" +clust.getTimeCentroid() + "," + clust.getReg().size() + "," + clust.getScore();
                 noOfDoc += clust.getReg().size();
             }
             if (noOfDoc < maxnoOfDoc) {
@@ -69,7 +69,7 @@ public class AnomalyCluster {
 //            if (100000 > docFreq && docFreq > 25) {
 
                 System.out.println("term = " + term + ", docFreq = " + docFreq);
-                String data = term.replace(',','.') + "," + docFreq + "," + noOfDoc + clusters;
+                String data = term.replace(',','.') + "," + docFreq + "," + noOfDoc + "," + termClusters.get(term).size() + clusters;
                 bw.write(data);
                 bw.newLine();
 //            }
@@ -139,7 +139,7 @@ public class AnomalyCluster {
                     double distance = -1;
                     //checking for the closest termCluster
                     for (termCluster clust: tmpClusterSet ) {
-                        double tmpDist = getDistance(clust.getCentroid(), tmpTerm.getLocation());
+                        double tmpDist = getDistance(clust, tmpTerm);
                         if (distance == -1 || distance > tmpDist) {
                             tmpClosestCluster = clust;
                             distance = tmpDist;
@@ -184,22 +184,22 @@ public class AnomalyCluster {
     }
 
     private static double getDistortion(termCluster updatedCluster) {
-        double[] centroid = updatedCluster.getCentroid();
         HashSet<extractedTerm> reg = updatedCluster.getReg();
 
         double sqrdDis = 0;
         for (extractedTerm term: reg) {
-            sqrdDis += getDistance(centroid, term.getLocation());
+            sqrdDis += getDistance(updatedCluster, term);
         }
 
         return Math.sqrt(sqrdDis / (reg.size() * 3));
     }
 
-    private static double getDistance(double[] p1, double[] p2) {
-        double lat = p1[0] - p2[0];
-        double longi = p1[1] - p2[1];
+    private static double getDistance(termCluster cluster, extractedTerm term) {
+        double lat = cluster.getCentroid() [0] - term.getLocation()[0];
+        double longi = cluster.getCentroid() [1] - term.getLocation()[1];
+        double time = cluster.getTimeCentroid().getTime() - term.getTimestamp().getTime();
 
-        return lat * lat + longi * longi;
+        return lat * lat + longi * longi + time * time;
     }
 
     public static List<String> tokenizeStopStem(String input) throws IOException {

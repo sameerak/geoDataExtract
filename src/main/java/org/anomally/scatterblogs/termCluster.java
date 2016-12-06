@@ -1,5 +1,6 @@
 package org.anomally.scatterblogs;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 
@@ -9,6 +10,9 @@ public class termCluster {
     private double[] minPoint;
     private double[] maxPoint;
     private double[] centroid;
+    private Date maxTime;
+    private Date minTime;
+    private Date timeCentroid;
     private HashSet<extractedTerm> reg = new HashSet<extractedTerm>();
     private HashMap<Integer, Integer> users = new HashMap<Integer, Integer>();
 
@@ -27,15 +31,21 @@ public class termCluster {
         centroid = term.getLocation();
         minPoint = term.getLocation();
         maxPoint = term.getLocation();
+        timeCentroid = term.getTimestamp();
+        maxTime = term.getTimestamp();
+        minTime = term.getTimestamp();
         reg.add(term);
         users.put(term.getUserID(), 1);
     }
 
-    public termCluster(String term, double[] centroid){
+    public termCluster(String term, double[] centroid, Date timeCentroid) {
         this.term = term;
         this.centroid = centroid;
         this.minPoint = centroid;
         this.maxPoint = centroid;
+        this.timeCentroid = timeCentroid;
+        this.maxTime = timeCentroid;
+        this.minTime = timeCentroid;
     }
 
     public double[] getCentroid() {
@@ -70,10 +80,13 @@ public class termCluster {
         //set centroid
         if (reg.isEmpty()){
             centroid = term.getLocation();
+            timeCentroid = term.getTimestamp();
         } else {
             double[] newcentroid = {getWeightedMean(centroid[0], term.getLocation()[0], reg.size())
                     , getWeightedMean(centroid[1], term.getLocation()[1], reg.size())};
             centroid = newcentroid;
+
+            timeCentroid = getWeightedTime(timeCentroid, term.getTimestamp(), reg.size());
         }
 
         //set min
@@ -83,6 +96,7 @@ public class termCluster {
 
         if (reg.isEmpty()) {
             minPoint = term.getLocation();
+            minTime = term.getTimestamp();
         }
 
         //set max
@@ -92,6 +106,7 @@ public class termCluster {
 
         if (minPoint != term.getLocation()) {
             maxPoint = term.getLocation();
+            maxTime = term.getTimestamp();
         }
 
         //add term to reg
@@ -111,6 +126,12 @@ public class termCluster {
         return result;
     }
 
+    private Date getWeightedTime (Date num1, Date num2, int weight){
+        long result = ((num1.getTime() * weight) + num2.getTime()) / (weight + 1);
+//        System.out.println("num1 = " + num1 + ", num2 = " + num2  + ", weight = " + weight + ", result = " + result);
+        return new Date(result);
+    }
+
     public String getTerm() {
         return term;
     }
@@ -124,5 +145,17 @@ public class termCluster {
         users.clear();
         this.minPoint = centroid;
         this.maxPoint = centroid;
+    }
+
+    public Date getMaxTime() {
+        return maxTime;
+    }
+
+    public Date getMinTime() {
+        return minTime;
+    }
+
+    public Date getTimeCentroid() {
+        return timeCentroid;
     }
 }
