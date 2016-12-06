@@ -1123,6 +1123,7 @@ public class plotAnalysis {
 
             //use user's previous locations to deduce user location.
             int userid = basicObject.getInt("userid");
+            long timestamp = basicObject.getLong("timestamp");
             HashSet<termCluster> user_locations = termClusters.get("user_" + userid);
 
             SimpleFeatureTypeBuilder b1 = new SimpleFeatureTypeBuilder();
@@ -1145,10 +1146,17 @@ public class plotAnalysis {
 
             if (!user_locations.isEmpty()) {
                 int max = 0;
+                long min_temporal_closeness = Long.MAX_VALUE;
                 double[] max_centroid = new double[2];
                 for (termCluster cluster : user_locations) {
-                    if (max < cluster.getReg().size()) {
+                    /*if (max < cluster.getReg().size()) {
                         max = cluster.getReg().size();
+                        max_centroid = cluster.getCentroid();
+                    }*/
+
+                    long temporal_closeness = Math.abs(timestamp - cluster.getTimeCentroid().getTime());
+                    if (min_temporal_closeness > temporal_closeness){
+                        min_temporal_closeness = temporal_closeness;
                         max_centroid = cluster.getCentroid();
                     }
                     Point point = geometryFactory1.createPoint(new Coordinate(cluster.getCentroid()[0], cluster.getCentroid()[1]));
