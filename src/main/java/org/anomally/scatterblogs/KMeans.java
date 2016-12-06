@@ -5,6 +5,8 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 
+import static org.anomally.scatterblogs.AnomalyCluster.miliSeconds_per12Hours;
+
 public class KMeans {
 
     //Number of Clusters. This metric should be related to the number of points
@@ -188,6 +190,7 @@ public class KMeans {
         double lat = p1[0] - p2[0];
         double longi = p1[1] - p2[1];
         double time = d1 - p2[2];
+        time = time / miliSeconds_per12Hours;
 
         return Math.sqrt(lat * lat + longi * longi + time * time);
     }

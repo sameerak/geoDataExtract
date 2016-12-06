@@ -25,6 +25,7 @@ public class AnomalyCluster {
     private static int numOfAnalyzedDocs = 0;
     private static HashSet<String> stop_word_set = new HashSet<String>();
     private static HashMap<String, HashSet<termCluster>> termClusters = new HashMap<String, HashSet<termCluster>>();
+    public static long miliSeconds_per12Hours = 12 * 60 * 60 * 1000;
 
     public static int getNumOfAnalyzedDocs() {
         return numOfAnalyzedDocs;
@@ -38,12 +39,12 @@ public class AnomalyCluster {
         DateFormat df = new SimpleDateFormat("EEE MMM dd HH:mm:ss ZZZZZ yyyy");
 
         Date startDate = df.parse("Sat Mar 06 00:00:00 +0000 2012");
-//        Date endDate = df.parse("Mon Apr 23 00:00:00 +0000 2012");
-        Date endDate = df.parse("Sat Mar 13 00:00:00 +0000 2012");
+        Date endDate = df.parse("Mon Apr 23 00:00:00 +0000 2012");
+//        Date endDate = df.parse("Sat Mar 13 00:00:00 +0000 2012");
 
         termClusters = getAnomalyset(startDate, endDate);
 
-        String processedfileName = "." + File.separator + "AUgeo_patternimportant_words.csv";
+        String processedfileName = "." + File.separator + "AUgeo_Anomalies_all.csv";
         BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(processedfileName)));
 
         System.out.println("Calculating docFreq@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
@@ -198,6 +199,7 @@ public class AnomalyCluster {
         double lat = cluster.getCentroid() [0] - term.getLocation()[0];
         double longi = cluster.getCentroid() [1] - term.getLocation()[1];
         double time = cluster.getTimeCentroid().getTime() - term.getTimestamp().getTime();
+        time = time / miliSeconds_per12Hours;
 
         return lat * lat + longi * longi + time * time;
     }
