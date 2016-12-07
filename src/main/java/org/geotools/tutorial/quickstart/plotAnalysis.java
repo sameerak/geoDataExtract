@@ -63,11 +63,15 @@ public class plotAnalysis {
     private static JTextField coordinates;
     public static long miliSeconds_perDay = 24 * 60 * 60 * 1000;
 
+    private static HashMap<Integer, ArrayList<BasicDBObject>> userSets = new HashMap<Integer, ArrayList<BasicDBObject>>();
+
     public static Color[] shortColors4Day = {
-            Color.green,
+            Color.red,
+            Color.orange,
             Color.yellow,
+            Color.green,
             Color.blue,
-            Color.red
+            Color.CYAN
     };
     public static Color[] Colors4Day = {
             //magenta
@@ -496,7 +500,7 @@ public class plotAnalysis {
             DefaultFeatureCollection featureCollection = new DefaultFeatureCollection("internal", TYPE);
 
             int dataLength = dbCursor.count();
-            int[] comp = {0, 0, 0, 0};
+            int[] comp = {0, 0, 0, 0, 0, 0};
 
             while (dbCursor.hasNext() /*&& count < 6  && daycount < 3*/) {
                 BasicDBObject basicObject = (BasicDBObject) dbCursor.next();
@@ -510,11 +514,21 @@ public class plotAnalysis {
                 featureBuilder = new SimpleFeatureBuilder(TYPE);
                 featureBuilder.add(point);
 
+                int userid = basicObject.getInt("userid");
+
                 featureBuilder.add(basicObject.getString("text"));
-                featureBuilder.add(basicObject.getInt("userid"));
+                featureBuilder.add(userid);
                 featureBuilder.add(basicObject.getString("screen_name"));
                 featureBuilder.add(basicObject.getString("created_at"));
                 featureBuilder.add(basicObject.getString("tweet_id"));
+
+                if (userSets.containsKey(userid)) {
+                    userSets.get(userid).add(basicObject);
+                } else {
+                    ArrayList<BasicDBObject> userSet = new ArrayList<BasicDBObject>();
+                    userSet.add(basicObject);
+                    userSets.put(userid, userSet);
+                }
 
                 long timestamp = basicObject.getLong("timestamp");
 
@@ -523,7 +537,7 @@ public class plotAnalysis {
                 date.setTimeZone(TimeZone.getTimeZone("Australia/Victoria"));
                 int hourOfDay = date.get(Calendar.HOUR_OF_DAY);
 
-                int pos = hourOfDay / 6;
+                int pos = hourOfDay / 4;
                 comp[pos] ++;
                 featureBuilder.add(shortColors4Day[pos]);
 
@@ -606,20 +620,7 @@ public class plotAnalysis {
             Date endDate = enddatePanel.GetDate();
 
             clearLayers();
-
-            //connecting mongoDB on local machine.
-            MongoClient mongoClient = new MongoClient("localhost", 27017);
-            //connecting to database named test
-            DB db = mongoClient.getDB("test");
-            // getting collection of all files
-            DBCollection collection = db.getCollection("correctTweetId");
-
-            BasicDBObject query = new BasicDBObject();
             int useridint = Integer.parseInt(userid.getText());
-            query.put("userid", useridint);
-            query.put("timestamp", BasicDBObjectBuilder.start("$gte", startDate.getTime()).add("$lte", endDate.getTime()).get());
-
-            DBCursor dbCursor = collection.find(query).sort(new BasicDBObject("timestamp", 1));
 
             SimpleFeatureTypeBuilder b = new SimpleFeatureTypeBuilder();
 
@@ -640,56 +641,119 @@ public class plotAnalysis {
             GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
             DefaultFeatureCollection featureCollection = new DefaultFeatureCollection("internal", TYPE);
 
-            int dataLength = dbCursor.count();
+            int dataLength = 0;
             int count = 0;
 
-            Coordinate[] coords  = new Coordinate[dataLength];
+            if (useridint <= 20 ){
+                for (int userid: userSets.keySet()) {
+                    ArrayList<BasicDBObject> userset = userSets.get(userid);
 
-            while (dbCursor.hasNext() /*&& count < 6  && daycount < 3*/) {
-                BasicDBObject basicObject = (BasicDBObject) dbCursor.next();
-
-                String tmp = basicObject.get("coordinates").toString();
-                tmp = tmp.substring(2, tmp.length() - 1);
+                    if (userset.size() >= useridint)
+                        continue;
+                    dataLength += userset.size();
+                    for (BasicDBObject object: userset) {
+                        String tmp = object.get("coordinates").toString();
+                        tmp = tmp.substring(2, tmp.length() - 1);
 //            System.out.println("" + tmp);
-                String[] coordinates = tmp.split(",");
+                        String[] coordinates = tmp.split(",");
 //                Point point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
-                Coordinate coord = new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1]));
+                        Coordinate coord = new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1]));
 
-                Point point = geometryFactory.createPoint(coord);
-                coords[count] = coord;
+                        Point point = geometryFactory.createPoint(coord);
 
-                featureBuilder = new SimpleFeatureBuilder(TYPE);
-                featureBuilder.add(point);
-                featureBuilder.add(basicObject.getString("text"));
-                featureBuilder.add(useridint);
-                featureBuilder.add(basicObject.getString("screen_name"));
-                featureBuilder.add(basicObject.getString("created_at"));
-                featureBuilder.add(basicObject.getLong("tweet_id"));
+                        featureBuilder = new SimpleFeatureBuilder(TYPE);
+                        featureBuilder.add(point);
+                        featureBuilder.add(object.getString("text"));
+                        featureBuilder.add(userid);
+                        featureBuilder.add(object.getString("screen_name"));
+                        featureBuilder.add(object.getString("created_at"));
+                        featureBuilder.add(object.getLong("tweet_id"));
 
-                long timestamp = basicObject.getLong("timestamp");
+                        long timestamp = object.getLong("timestamp");
 
-                Calendar date = Calendar.getInstance();
-                date.setTime(new Date(timestamp));
-                date.setTimeZone(TimeZone.getTimeZone("Australia/Victoria"));
-                int hourOfDay = date.get(Calendar.HOUR_OF_DAY);
+                        Calendar date = Calendar.getInstance();
+                        date.setTime(new Date(timestamp));
+                        date.setTimeZone(TimeZone.getTimeZone("Australia/Victoria"));
+                        int hourOfDay = date.get(Calendar.HOUR_OF_DAY);
 
-                int pos = hourOfDay / 6;
-                featureBuilder.add(shortColors4Day[pos]);
-                featureBuilder.add(timestamp);
+                        int pos = hourOfDay / 4;
+                        featureBuilder.add(shortColors4Day[pos]);
+                        featureBuilder.add(timestamp);
 
-                SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
-                featureCollection.add(feature);
-                count++;
+                        SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
+                        featureCollection.add(feature);
+                        count++;
+                    }
+                }
+                trajectorylayer = null;
+            } else {
+
+                //connecting mongoDB on local machine.
+                MongoClient mongoClient = new MongoClient("localhost", 27017);
+                //connecting to database named test
+                DB db = mongoClient.getDB("test");
+                // getting collection of all files
+                DBCollection collection = db.getCollection("correctTweetId");
+
+                BasicDBObject query = new BasicDBObject();
+                query.put("userid", useridint);
+                query.put("timestamp", BasicDBObjectBuilder.start("$gte", startDate.getTime()).add("$lte", endDate.getTime()).get());
+
+                DBCursor dbCursor = collection.find(query).sort(new BasicDBObject("timestamp", 1));
+
+                dataLength = dbCursor.count();
+
+                Coordinate[] coords = new Coordinate[dataLength];
+
+                while (dbCursor.hasNext() /*&& count < 6  && daycount < 3*/) {
+                    BasicDBObject basicObject = (BasicDBObject) dbCursor.next();
+
+                    String tmp = basicObject.get("coordinates").toString();
+                    tmp = tmp.substring(2, tmp.length() - 1);
+//            System.out.println("" + tmp);
+                    String[] coordinates = tmp.split(",");
+//                Point point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
+                    Coordinate coord = new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1]));
+
+                    Point point = geometryFactory.createPoint(coord);
+                    coords[count] = coord;
+
+                    featureBuilder = new SimpleFeatureBuilder(TYPE);
+                    featureBuilder.add(point);
+                    featureBuilder.add(basicObject.getString("text"));
+                    featureBuilder.add(useridint);
+                    featureBuilder.add(basicObject.getString("screen_name"));
+                    featureBuilder.add(basicObject.getString("created_at"));
+                    featureBuilder.add(basicObject.getLong("tweet_id"));
+
+                    long timestamp = basicObject.getLong("timestamp");
+
+                    Calendar date = Calendar.getInstance();
+                    date.setTime(new Date(timestamp));
+                    date.setTimeZone(TimeZone.getTimeZone("Australia/Victoria"));
+                    int hourOfDay = date.get(Calendar.HOUR_OF_DAY);
+
+                    int pos = hourOfDay / 4;
+                    featureBuilder.add(shortColors4Day[pos]);
+                    featureBuilder.add(timestamp);
+
+                    SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
+                    featureCollection.add(feature);
+                    count++;
+                }
+
+                mongoClient.close();
+
+                trajectorylayer = getLayerLineByCoord(coords);
             }
-
-            mongoClient.close();
 
             Style style = createPointStyle();
             querylayer = new FeatureLayer(featureCollection, style);
             map.addLayer(querylayer);
 
-            trajectorylayer = getLayerLineByCoord(coords);
-            map.addLayer(trajectorylayer);
+            if (trajectorylayer != null) {
+                map.addLayer(trajectorylayer);
+            }
 
             int numInvalid = 1;
             String msg;
