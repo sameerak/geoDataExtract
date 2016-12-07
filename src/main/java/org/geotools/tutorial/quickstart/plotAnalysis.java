@@ -18,6 +18,7 @@ import org.geotools.geometry.jts.JTSFactoryFinder;
 import org.geotools.map.FeatureLayer;
 import org.geotools.map.Layer;
 import org.geotools.map.MapContent;
+import org.geotools.nature.*;
 import org.geotools.referencing.crs.DefaultGeographicCRS;
 import org.geotools.styling.*;
 import org.geotools.swing.JMapFrame;
@@ -40,6 +41,7 @@ import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.Calendar;
 import java.util.regex.Pattern;
 
 public class plotAnalysis {
@@ -59,8 +61,61 @@ public class plotAnalysis {
     static Layer trajectorylayer = null;
     static Layer userlayer = null;
     private static JTextField coordinates;
+    public static long miliSeconds_perDay = 24 * 60 * 60 * 1000;
+
+    public static Color[] shortColors4Day = {
+            Color.green,
+            Color.yellow,
+            Color.blue,
+            Color.red
+    };
+    public static Color[] Colors4Day = {
+            //magenta
+            hex2Rgb("#FFCCE5"),
+            hex2Rgb("#FF99CC"),
+            hex2Rgb("#FF66B2"),
+            hex2Rgb("#FF3399"),
+            hex2Rgb("#FF007F"),
+            hex2Rgb("#CC0066"),
+
+            //Blue
+            hex2Rgb("#CCCCFF"),
+            hex2Rgb("#9999FF"),
+            hex2Rgb("#6666FF"),
+            hex2Rgb("#3333FF"),
+            hex2Rgb("#0000FF"),
+            hex2Rgb("#0000CC"),
+
+            //Green
+            hex2Rgb("#CCFFCC"),
+            hex2Rgb("#99FF99"),
+            hex2Rgb("#66FF66"),
+            hex2Rgb("#33FF33"),
+            hex2Rgb("#00FF00"),
+            hex2Rgb("#00CC00"),
+
+            //Orange
+            hex2Rgb("#FFE5CC"),
+            hex2Rgb("#FFCC99"),
+            hex2Rgb("#FFB266"),
+            hex2Rgb("#FF9933"),
+            hex2Rgb("#FF8000"),
+            hex2Rgb("#CC6600")
+    };
 
     private static HashMap<String, HashSet<termCluster>> termClusters;
+
+    /**
+     *
+     * @param colorStr e.g. "#FFFFFF"
+     * @return
+     */
+    public static Color hex2Rgb(String colorStr) {
+        return new Color(
+                Integer.valueOf( colorStr.substring( 1, 3 ), 16 ),
+                Integer.valueOf( colorStr.substring( 3, 5 ), 16 ),
+                Integer.valueOf( colorStr.substring( 5, 7 ), 16 ) );
+    }
 
 
     /**
@@ -432,6 +487,7 @@ public class plotAnalysis {
             b.add("username", String.class);
             b.add("created_at", String.class);
             b.add("tweet_id", Double.class);
+            b.add("color", String.class);
             // building the type
             final SimpleFeatureType TYPE = b.buildFeatureType();
 
@@ -440,6 +496,7 @@ public class plotAnalysis {
             DefaultFeatureCollection featureCollection = new DefaultFeatureCollection("internal", TYPE);
 
             int dataLength = dbCursor.count();
+            int[] comp = {0, 0, 0, 0};
 
             while (dbCursor.hasNext() /*&& count < 6  && daycount < 3*/) {
                 BasicDBObject basicObject = (BasicDBObject) dbCursor.next();
@@ -459,8 +516,23 @@ public class plotAnalysis {
                 featureBuilder.add(basicObject.getString("created_at"));
                 featureBuilder.add(basicObject.getString("tweet_id"));
 
+                long timestamp = basicObject.getLong("timestamp");
+
+                Calendar date = Calendar.getInstance();
+                date.setTime(new Date(timestamp));
+                date.setTimeZone(TimeZone.getTimeZone("Australia/Victoria"));
+                int hourOfDay = date.get(Calendar.HOUR_OF_DAY);
+
+                int pos = hourOfDay / 6;
+                comp[pos] ++;
+                featureBuilder.add(shortColors4Day[pos]);
+
                 SimpleFeature feature = featureBuilder.buildFeature(null);
                 featureCollection.add(feature);
+            }
+
+            for (int i = 0; i < comp.length; i++) {
+                System.out.println(" comp " + i + " = " + comp[i]);
             }
 
             mongoClient.close();
@@ -494,9 +566,12 @@ public class plotAnalysis {
             Mark mark = styleFactory.getCircleMark();
 
             mark.setStroke(styleFactory.createStroke(
-                    filterFactory.literal(Color.BLUE), filterFactory.literal(1)));
+                    filterFactory.literal(Color.BLACK), filterFactory.literal(1)));
 
-            mark.setFill(styleFactory.createFill(filterFactory.literal(Color.MAGENTA)));
+//            mark.setFill(styleFactory.createFill(filterFactory.literal(Color.MAGENTA)));
+            StyleBuilder sb = new StyleBuilder();
+            mark.setFill(styleFactory.createFill(/*filterFactory.literal(Color.CYAN)*/
+                    sb.attributeExpression("color")));
 
             gr.graphicalSymbols().clear();
             gr.graphicalSymbols().add(mark);
@@ -556,6 +631,8 @@ public class plotAnalysis {
             b.add("username", String.class);
             b.add("created_at", String.class);
             b.add("tweet_id", Double.class);
+            b.add("color", String.class);
+            b.add("timestamp", Long.class);
             // building the type
             final SimpleFeatureType TYPE = b.buildFeatureType();
 
@@ -588,6 +665,17 @@ public class plotAnalysis {
                 featureBuilder.add(basicObject.getString("screen_name"));
                 featureBuilder.add(basicObject.getString("created_at"));
                 featureBuilder.add(basicObject.getLong("tweet_id"));
+
+                long timestamp = basicObject.getLong("timestamp");
+
+                Calendar date = Calendar.getInstance();
+                date.setTime(new Date(timestamp));
+                date.setTimeZone(TimeZone.getTimeZone("Australia/Victoria"));
+                int hourOfDay = date.get(Calendar.HOUR_OF_DAY);
+
+                int pos = hourOfDay / 6;
+                featureBuilder.add(shortColors4Day[pos]);
+                featureBuilder.add(timestamp);
 
                 SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
                 featureCollection.add(feature);
@@ -625,7 +713,7 @@ public class plotAnalysis {
             DefaultFeatureCollection lineCollection = new DefaultFeatureCollection();
             lineCollection.add(feature);
 
-            Style style = SLD.createLineStyle(Color.BLUE, 1);
+            Style style = SLD.createLineStyle(Color.BLACK, 0.1F);
             return new FeatureLayer(lineCollection, style);
         }
 
@@ -642,13 +730,16 @@ public class plotAnalysis {
             Mark mark = styleFactory.getCircleMark();
 
             mark.setStroke(styleFactory.createStroke(
-                    filterFactory.literal(Color.BLUE), filterFactory.literal(1)));
+                    filterFactory.literal(Color.BLACK), filterFactory.literal(1)));
 
-            mark.setFill(styleFactory.createFill(filterFactory.literal(Color.CYAN)));
+//            mark.setFill(styleFactory.createFill(filterFactory.literal(Color.MAGENTA)));
+            StyleBuilder sb = new StyleBuilder();
+            mark.setFill(styleFactory.createFill(/*filterFactory.literal(Color.CYAN)*/
+                    sb.attributeExpression("color")));
 
             gr.graphicalSymbols().clear();
             gr.graphicalSymbols().add(mark);
-            gr.setSize(filterFactory.literal(5));
+            gr.setSize(filterFactory.literal(10));
 
         /*
          * Setting the geometryPropertyName arg to null signals that we want to
