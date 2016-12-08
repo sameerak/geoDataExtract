@@ -23,6 +23,7 @@ import org.geotools.referencing.crs.DefaultGeographicCRS;
 import org.geotools.styling.*;
 import org.geotools.swing.JMapFrame;
 import org.geotools.swing.action.SafeAction;
+import org.geotools.tutorial.quickstart.util.TweetPOJO;
 import org.geotools.tutorial.quickstart.util.WrapLayout;
 import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
@@ -63,15 +64,22 @@ public class plotAnalysis {
     private static JTextField coordinates;
     public static long miliSeconds_perDay = 24 * 60 * 60 * 1000;
 
-    private static HashMap<Integer, ArrayList<BasicDBObject>> userSets = new HashMap<Integer, ArrayList<BasicDBObject>>();
+    private static HashMap<Integer, ArrayList<TweetPOJO>> userSets = new HashMap<Integer, ArrayList<TweetPOJO>>();
 
     public static Color[] shortColors4Day = {
+//            Color.red,
+//            Color.orange,
+//            Color.yellow,
+//            Color.green,
+//            Color.blue,
+//            Color.CYAN
+            //magenta
+            Color.red.darker().darker(),
+            Color.red.darker(),
             Color.red,
-            Color.orange,
             Color.yellow,
-            Color.green,
-            Color.blue,
-            Color.CYAN
+            Color.yellow.darker()/*.darker()*/,
+            Color.yellow.darker().darker()/*.darker().darker()*/
     };
     public static Color[] Colors4Day = {
             //magenta
@@ -522,15 +530,20 @@ public class plotAnalysis {
                 featureBuilder.add(basicObject.getString("created_at"));
                 featureBuilder.add(basicObject.getString("tweet_id"));
 
+                long timestamp = basicObject.getLong("timestamp");
+                double[] location = {Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])};
+
+                TweetPOJO tweet = new TweetPOJO(location, basicObject.getString("text"),
+                        userid, basicObject.getString("screen_name"),
+                        basicObject.getString("created_at"), basicObject.getLong("tweet_id"), timestamp);
+
                 if (userSets.containsKey(userid)) {
-                    userSets.get(userid).add(basicObject);
+                    userSets.get(userid).add(tweet);
                 } else {
-                    ArrayList<BasicDBObject> userSet = new ArrayList<BasicDBObject>();
-                    userSet.add(basicObject);
+                    ArrayList<TweetPOJO> userSet = new ArrayList<TweetPOJO>();
+                    userSet.add(tweet);
                     userSets.put(userid, userSet);
                 }
-
-                long timestamp = basicObject.getLong("timestamp");
 
                 Calendar date = Calendar.getInstance();
                 date.setTime(new Date(timestamp));
@@ -634,6 +647,7 @@ public class plotAnalysis {
             b.add("tweet_id", Double.class);
             b.add("color", String.class);
             b.add("timestamp", Long.class);
+            b.add("size", Integer.class);
             // building the type
             final SimpleFeatureType TYPE = b.buildFeatureType();
 
@@ -646,30 +660,26 @@ public class plotAnalysis {
 
             if (useridint <= 20 ){
                 for (int userid: userSets.keySet()) {
-                    ArrayList<BasicDBObject> userset = userSets.get(userid);
+                    ArrayList<TweetPOJO> userset = userSets.get(userid);
 
                     if (userset.size() >= useridint)
                         continue;
                     dataLength += userset.size();
-                    for (BasicDBObject object: userset) {
-                        String tmp = object.get("coordinates").toString();
-                        tmp = tmp.substring(2, tmp.length() - 1);
-//            System.out.println("" + tmp);
-                        String[] coordinates = tmp.split(",");
-//                Point point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
-                        Coordinate coord = new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1]));
+                    for (TweetPOJO object: userset) {
+                        double[] coordinates = object.getLocation();
+                        Coordinate coord = new Coordinate(coordinates[0], coordinates[1]);
 
                         Point point = geometryFactory.createPoint(coord);
 
                         featureBuilder = new SimpleFeatureBuilder(TYPE);
                         featureBuilder.add(point);
-                        featureBuilder.add(object.getString("text"));
+                        featureBuilder.add(object.getText());
                         featureBuilder.add(userid);
-                        featureBuilder.add(object.getString("screen_name"));
-                        featureBuilder.add(object.getString("created_at"));
-                        featureBuilder.add(object.getLong("tweet_id"));
+                        featureBuilder.add(object.getScreen_name());
+                        featureBuilder.add(object.getCreated_at());
+                        featureBuilder.add(object.getTweet_id());
 
-                        long timestamp = object.getLong("timestamp");
+                        long timestamp = object.getTimestamp();
 
                         Calendar date = Calendar.getInstance();
                         date.setTime(new Date(timestamp));
@@ -679,6 +689,7 @@ public class plotAnalysis {
                         int pos = hourOfDay / 4;
                         featureBuilder.add(shortColors4Day[pos]);
                         featureBuilder.add(timestamp);
+                        featureBuilder.add(5);
 
                         SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
                         featureCollection.add(feature);
@@ -736,6 +747,7 @@ public class plotAnalysis {
                     int pos = hourOfDay / 4;
                     featureBuilder.add(shortColors4Day[pos]);
                     featureBuilder.add(timestamp);
+                    featureBuilder.add(10);
 
                     SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
                     featureCollection.add(feature);
@@ -744,7 +756,8 @@ public class plotAnalysis {
 
                 mongoClient.close();
 
-                trajectorylayer = getLayerLineByCoord(coords);
+                if (dataLength > 1)
+                    trajectorylayer = getLayerLineByCoord(coords);
             }
 
             Style style = createPointStyle();
@@ -798,12 +811,13 @@ public class plotAnalysis {
 
 //            mark.setFill(styleFactory.createFill(filterFactory.literal(Color.MAGENTA)));
             StyleBuilder sb = new StyleBuilder();
+            FilterFactory2 ff = sb.getFilterFactory();
             mark.setFill(styleFactory.createFill(/*filterFactory.literal(Color.CYAN)*/
                     sb.attributeExpression("color")));
 
             gr.graphicalSymbols().clear();
             gr.graphicalSymbols().add(mark);
-            gr.setSize(filterFactory.literal(10));
+            gr.setSize(ff.property("size"));
 
         /*
          * Setting the geometryPropertyName arg to null signals that we want to
