@@ -509,6 +509,7 @@ public class plotAnalysis {
 
             int dataLength = dbCursor.count();
             int[] comp = {0, 0, 0, 0, 0, 0};
+            userSets = new HashMap<Integer, ArrayList<TweetPOJO>>();
 
             while (dbCursor.hasNext() /*&& count < 6  && daycount < 3*/) {
                 BasicDBObject basicObject = (BasicDBObject) dbCursor.next();
@@ -662,7 +663,7 @@ public class plotAnalysis {
                 for (int userid: userSets.keySet()) {
                     ArrayList<TweetPOJO> userset = userSets.get(userid);
 
-                    if (userset.size() >= useridint)
+                    if (userset.size() == useridint)
                         continue;
                     dataLength += userset.size();
                     for (TweetPOJO object: userset) {
@@ -1303,9 +1304,10 @@ public class plotAnalysis {
             b1.add("color", String.class);
             b1.add("userid", Integer.class);
             b1.add("size", Integer.class);
-//            b.add("username", String.class);
-//            b.add("created_at", String.class);
-//            b.add("tweet_id", Double.class);
+            b1.add("minTime", String.class);
+            b1.add("maxTime", String.class);
+            b1.add("timestamp", Long.class);
+            b1.add("power", Integer.class);
             // building the type
             final SimpleFeatureType TYPE1 = b1.buildFeatureType();
 
@@ -1334,6 +1336,10 @@ public class plotAnalysis {
                     featureBuilder1.add(Color.CYAN);
                     featureBuilder1.add(userid);
                     featureBuilder1.add(10);
+                    featureBuilder1.add(df.format(cluster.getMinTime()));
+                    featureBuilder1.add(df.format(cluster.getMaxTime()));
+                    featureBuilder1.add(cluster.getTimeCentroid().getTime());
+                    featureBuilder1.add(cluster.getReg().size());
 
                     SimpleFeature feature = featureBuilder1.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
                     featureCollection1.add(feature);
@@ -1365,6 +1371,10 @@ public class plotAnalysis {
                 featureBuilder1.add(Color.green);
                 featureBuilder1.add(userid);
                 featureBuilder1.add(5);
+                featureBuilder1.add(basicObject.getString("created_at"));
+                featureBuilder1.add(basicObject.getString("created_at"));
+                featureBuilder1.add(basicObject.getLong("timestamp"));
+                featureBuilder1.add(1);
 
                 SimpleFeature feature1 = featureBuilder1.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
                 featureCollection1.add(feature1);
