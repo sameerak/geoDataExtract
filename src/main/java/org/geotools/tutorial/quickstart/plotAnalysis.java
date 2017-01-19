@@ -4,6 +4,7 @@ import com.mongodb.*;
 import com.toedter.calendar.JDateChooser;
 import com.vividsolutions.jts.geom.*;
 import org.anomally.scatterblogs.AnomalyCluster;
+import org.anomally.scatterblogs.extractedTerm;
 import org.anomally.scatterblogs.termCluster;
 import org.geotools.data.DataUtilities;
 import org.geotools.data.FileDataStore;
@@ -44,6 +45,8 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.Calendar;
 import java.util.regex.Pattern;
+
+import static org.anomally.scatterblogs.AnomalyCluster.miliSeconds_per12Hours;
 
 public class plotAnalysis {
     // display a data store file chooser dialog for shapefiles
@@ -280,6 +283,7 @@ public class plotAnalysis {
         }
         if (trajectorylayer != null) {
             map.removeLayer(trajectorylayer);
+            trajectorylayer = null;
         }
         if (userlayer != null) {
             map.removeLayer(userlayer);
@@ -485,7 +489,7 @@ public class plotAnalysis {
             query.put("timestamp", BasicDBObjectBuilder.start("$gte", startDate.getTime()).add("$lte", endDate.getTime()).get());
             query.put("userid",  BasicDBObjectBuilder.start("$not", new BasicDBObject("$in", list)).get());
 
-            DBCursor dbCursor = collection.find(query).sort(new BasicDBObject("timestamp", 1));
+            DBCursor dbCursor = collection.find(query).sort(new BasicDBObject(/*"userid", 1).append(*/"timestamp",1));
 
             Date oldDate = null,checkdate;
 
@@ -507,9 +511,14 @@ public class plotAnalysis {
             GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
             DefaultFeatureCollection featureCollection = new DefaultFeatureCollection("internal", TYPE);
 
+//            DefaultFeatureCollection lineCollection = new DefaultFeatureCollection();
+
             int dataLength = dbCursor.count();
             int[] comp = {0, 0, 0, 0, 0, 0};
             userSets = new HashMap<Integer, ArrayList<TweetPOJO>>();
+//
+//            int previousUserID = 0;
+//            ArrayList<Coordinate> userCoords = new ArrayList<Coordinate>();
 
             while (dbCursor.hasNext() /*&& count < 6  && daycount < 3*/) {
                 BasicDBObject basicObject = (BasicDBObject) dbCursor.next();
@@ -518,12 +527,25 @@ public class plotAnalysis {
                 tmp = tmp.substring(2, tmp.length() - 1);
 //            System.out.println("" + tmp);
                 String[] coordinates = tmp.split(",");
-                Point point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
+                Coordinate userCoord = new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1]));
+                Point point = geometryFactory.createPoint(userCoord);
 
                 featureBuilder = new SimpleFeatureBuilder(TYPE);
                 featureBuilder.add(point);
 
                 int userid = basicObject.getInt("userid");
+
+//                if (previousUserID == userid) {
+//                    userCoords.add(userCoord);
+//                }
+//                else {
+//                    if (userCoords.size() > 1) {
+//                        Coordinate[] coords = userCoords.toArray(new Coordinate[userCoords.size()]);
+//                        SimpleFeature linefeature = getLineFeatureByCoord(coords);
+//                        lineCollection.add(linefeature);
+//                    }
+//                    previousUserID = userid;
+//                }
 
                 featureBuilder.add(basicObject.getString("text"));
                 featureBuilder.add(userid);
@@ -538,13 +560,13 @@ public class plotAnalysis {
                         userid, basicObject.getString("screen_name"),
                         basicObject.getString("created_at"), basicObject.getLong("tweet_id"), timestamp);
 
-                if (userSets.containsKey(userid)) {
-                    userSets.get(userid).add(tweet);
-                } else {
-                    ArrayList<TweetPOJO> userSet = new ArrayList<TweetPOJO>();
-                    userSet.add(tweet);
-                    userSets.put(userid, userSet);
-                }
+//                if (userSets.containsKey(userid)) {
+//                    userSets.get(userid).add(tweet);
+//                } else {
+//                    ArrayList<TweetPOJO> userSet = new ArrayList<TweetPOJO>();
+//                    userSet.add(tweet);
+//                    userSets.put(userid, userSet);
+//                }
 
                 Calendar date = Calendar.getInstance();
                 date.setTime(new Date(timestamp));
@@ -569,6 +591,12 @@ public class plotAnalysis {
             Style style = createPointStyle();
             querylayer = new FeatureLayer(featureCollection, style);
             map.addLayer(querylayer);
+
+
+//            Style linestyle = createLineStyle();
+//            trajectorylayer = new FeatureLayer(lineCollection, linestyle);
+//
+//            map.addLayer(trajectorylayer);
 
             int numInvalid = 1;
             String msg;
@@ -620,6 +648,28 @@ public class plotAnalysis {
             return style;
         }
 
+        private Style createLineStyle() {
+            Style style = SLD.createLineStyle(Color.GREEN, 0.1F);
+            return style;
+        }
+
+        private SimpleFeature getLineFeatureByCoord(Coordinate[] coords) throws SchemaException {
+            GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+            LineString line = geometryFactory.createLineString(coords);
+            SimpleFeatureType LINETYPE = DataUtilities.createType("test", "line", "the_geom:LineString");
+            SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder((SimpleFeatureType) LINETYPE);
+            featureBuilder.add(line);
+            SimpleFeature feature = featureBuilder.buildFeature(null);
+
+            return feature;
+
+//            DefaultFeatureCollection lineCollection = new DefaultFeatureCollection();
+//            lineCollection.add(feature);
+//
+//            Style style = SLD.createLineStyle(Color.BLACK, 0.1F);
+//            return new FeatureLayer(lineCollection, style);
+        }
+
     }
 
     static class PlotUserData extends SafeAction {
@@ -655,6 +705,8 @@ public class plotAnalysis {
             SimpleFeatureBuilder featureBuilder;
             GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
             DefaultFeatureCollection featureCollection = new DefaultFeatureCollection("internal", TYPE);
+
+            DefaultFeatureCollection lineCollection = new DefaultFeatureCollection();
 
             int dataLength = 0;
             int count = 0;
@@ -715,7 +767,11 @@ public class plotAnalysis {
 
                 dataLength = dbCursor.count();
 
-                Coordinate[] coords = new Coordinate[dataLength];
+                ArrayList<Coordinate> userCoords = new ArrayList<Coordinate>();
+                long previousTimestamp = 0;
+                String previousDate = "";
+                long timeThreshold = 24 * 3600 * 1000;
+                int linecount = 0;
 
                 while (dbCursor.hasNext() /*&& count < 6  && daycount < 3*/) {
                     BasicDBObject basicObject = (BasicDBObject) dbCursor.next();
@@ -728,12 +784,12 @@ public class plotAnalysis {
                     Coordinate coord = new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1]));
 
                     Point point = geometryFactory.createPoint(coord);
-                    coords[count] = coord;
 
                     featureBuilder = new SimpleFeatureBuilder(TYPE);
                     featureBuilder.add(point);
                     featureBuilder.add(basicObject.getString("text"));
                     featureBuilder.add(useridint);
+                    String date1 = basicObject.getString("created_at");
                     featureBuilder.add(basicObject.getString("screen_name"));
                     featureBuilder.add(basicObject.getString("created_at"));
                     featureBuilder.add(basicObject.getLong("tweet_id"));
@@ -752,22 +808,47 @@ public class plotAnalysis {
 
                     SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
                     featureCollection.add(feature);
+
+                    if (timestamp - previousTimestamp <= timeThreshold) {
+                        userCoords.add(coord);
+                    }
+                    else {
+                        if (userCoords.size() > 1) {
+                            Coordinate[] coords = userCoords.toArray(new Coordinate[userCoords.size()]);
+                            SimpleFeature linefeature = getLineFeatureByCoord(coords);
+                            lineCollection.add(linefeature);
+                            linecount++;
+                        }
+                        userCoords = new ArrayList<Coordinate>();
+                        userCoords.add(coord);
+                    }
+                    previousTimestamp = timestamp;
+                    previousDate = date1;
                     count++;
                 }
 
+                if (userCoords.size() > 1) {
+                    Coordinate[] coords = userCoords.toArray(new Coordinate[userCoords.size()]);
+                    SimpleFeature linefeature = getLineFeatureByCoord(coords);
+                    lineCollection.add(linefeature);
+                    linecount++;
+                }
+                System.out.println("line count = " + linecount);
+
                 mongoClient.close();
 
-                if (dataLength > 1)
-                    trajectorylayer = getLayerLineByCoord(coords);
+//                if (dataLength > 1)
+//                    trajectorylayer = getLayerLineByCoord(coords);
             }
 
             Style style = createPointStyle();
             querylayer = new FeatureLayer(featureCollection, style);
             map.addLayer(querylayer);
 
-            if (trajectorylayer != null) {
-                map.addLayer(trajectorylayer);
-            }
+            Style linestyle = createLineStyle();
+            trajectorylayer = new FeatureLayer(lineCollection, linestyle);
+
+            map.addLayer(trajectorylayer);
 
             int numInvalid = 1;
             String msg;
@@ -780,19 +861,20 @@ public class plotAnalysis {
                     JOptionPane.INFORMATION_MESSAGE);
         }
 
-        private Layer getLayerLineByCoord(Coordinate[] coords) throws SchemaException {
+        private Style createLineStyle() {
+            Style style = SLD.createLineStyle(Color.GREEN, 0.1F);
+            return style;
+        }
+
+        private SimpleFeature getLineFeatureByCoord(Coordinate[] coords) throws SchemaException {
             GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
             LineString line = geometryFactory.createLineString(coords);
-            SimpleFeatureType TYPE = DataUtilities.createType("test", "line", "the_geom:LineString");
-            SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder((SimpleFeatureType) TYPE);
+            SimpleFeatureType LINETYPE = DataUtilities.createType("test", "line", "the_geom:LineString");
+            SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder((SimpleFeatureType) LINETYPE);
             featureBuilder.add(line);
-            SimpleFeature feature = featureBuilder.buildFeature("LineString_Sample");
+            SimpleFeature feature = featureBuilder.buildFeature(null);
 
-            DefaultFeatureCollection lineCollection = new DefaultFeatureCollection();
-            lineCollection.add(feature);
-
-            Style style = SLD.createLineStyle(Color.BLACK, 0.1F);
-            return new FeatureLayer(lineCollection, style);
+            return feature;
         }
 
 
@@ -847,6 +929,10 @@ public class plotAnalysis {
         public void action(ActionEvent e) throws Throwable {
             Date startDate = startdatePanel.GetDate();
             Date endDate = enddatePanel.GetDate();
+            String temp = coordinates.getText();
+
+            String[] restictionsString = temp.split(", ");
+            int[] restrictions = {Integer.parseInt(restictionsString[0]), Integer.parseInt(restictionsString[1])};
 
             clearLayers();
 
@@ -858,9 +944,16 @@ public class plotAnalysis {
             DBCollection collection = db.getCollection("correctTweetId");
 
             BasicDBObject query = new BasicDBObject();
+
             String word = userid.getText();
+            List<Integer> list = new ArrayList<Integer>();
+            list.add(504409867);
+            list.add(18147028); //vicRoads
+            list.add(277717138); //NewZealandRoads
+
             query.put("text", Pattern.compile(word, Pattern.CASE_INSENSITIVE));
             query.put("timestamp", BasicDBObjectBuilder.start("$gte", startDate.getTime()).add("$lte", endDate.getTime()).get());
+            query.put("userid",  BasicDBObjectBuilder.start("$not", new BasicDBObject("$in", list)).get());
 
             DBCursor dbCursor = collection.find(query).sort(new BasicDBObject("timestamp", 1));
 
@@ -881,10 +974,19 @@ public class plotAnalysis {
             GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
             DefaultFeatureCollection featureCollection = new DefaultFeatureCollection("internal", TYPE);
 
+            DefaultFeatureCollection lineCollection = new DefaultFeatureCollection();
+
+            ArrayList<Coordinate> userCoords = new ArrayList<Coordinate>();
+            long previousTimestamp = 0;
+            String previousDate = "";
+            long timeThreshold = 24 * 3600 * 1000;
+            int linecount = 0;
+
             int dataLength = dbCursor.count();
             int count = 0;
 
             Coordinate[] coords  = new Coordinate[dataLength];
+            HashSet<Integer> userids = new HashSet<Integer>();
 
             while (dbCursor.hasNext() /*&& count < 6  && daycount < 3*/) {
                 BasicDBObject basicObject = (BasicDBObject) dbCursor.next();
@@ -897,18 +999,102 @@ public class plotAnalysis {
                 Coordinate coord = new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1]));
 
                 Point point = geometryFactory.createPoint(coord);
-                coords[count] = coord;
+//                coords[count] = coord;
 
                 featureBuilder = new SimpleFeatureBuilder(TYPE);
                 featureBuilder.add(point);
                 featureBuilder.add(basicObject.getString("text"));
-                featureBuilder.add(basicObject.getInt("userid"));
+                int userid = basicObject.getInt("userid");
+                if (!userids.contains(userid)) {
+
+                    //connecting mongoDB on local machine.
+//                    MongoClient mongoClient1 = new MongoClient("localhost", 27017);
+                    //connecting to database named test
+//                    DB db1 = mongoClient1.getDB("test");
+                    // getting collection of all files
+//                    DBCollection collection1 = db1.getCollection("correctTweetId");
+
+                    BasicDBObject query1 = new BasicDBObject();
+                    query1.put("userid", userid);
+                    query1.put("timestamp", BasicDBObjectBuilder.start("$gte", startDate.getTime()).add("$lte", endDate.getTime()).get());
+
+                    DBCursor dbCursor1 = collection.find(query1).sort(new BasicDBObject("timestamp", 1));
+
+                    int dataLength1 = dbCursor1.count();
+                    int count1 = 0;
+
+
+                    while (dbCursor1.hasNext() /*&& count < 6  && daycount < 3*/) {
+                        BasicDBObject basicObject1 = (BasicDBObject) dbCursor1.next();
+
+                        String tmp1 = basicObject1.get("coordinates").toString();
+                        tmp1 = tmp1.substring(2, tmp1.length() - 1);
+//            System.out.println("" + tmp1);
+                        String[] coordinates1 = tmp1.split(",");
+//                Point point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates1[0]), Double.parseDouble(coordinates1[1])));
+                        Coordinate coord1 = new Coordinate(Double.parseDouble(coordinates1[0]), Double.parseDouble(coordinates1[1]));
+
+                        Point point1 = geometryFactory.createPoint(coord1);
+
+                        featureBuilder = new SimpleFeatureBuilder(TYPE);
+                        featureBuilder.add(point1);
+                        featureBuilder.add(basicObject1.getString("text"));
+                        featureBuilder.add(userid);
+                        featureBuilder.add(basicObject1.getString("screen_name"));
+                        featureBuilder.add(basicObject1.getString("created_at"));
+                        featureBuilder.add(basicObject1.getLong("tweet_id"));
+
+                        long timestamp = basicObject1.getLong("timestamp");
+
+                        Calendar date = Calendar.getInstance();
+                        date.setTime(new Date(timestamp));
+                        date.setTimeZone(TimeZone.getTimeZone("Australia/Victoria"));
+                        int hourOfDay = date.get(Calendar.HOUR_OF_DAY);
+
+                        int pos = hourOfDay / 4;
+//                        featureBuilder.add(shortColors4Day[pos]);
+//                        featureBuilder.add(timestamp);
+//                        featureBuilder.add(10);
+
+                        SimpleFeature feature = featureBuilder.buildFeature(null);
+                        featureCollection.add(feature);
+                        count1++;
+
+                        if (timestamp - previousTimestamp <= restrictions[0] &&
+                                coord1.distance(userCoords.get(userCoords.size() - 1)) <= restrictions[1]) {
+                            userCoords.add(coord1);
+                        }
+                        else {
+                            if (userCoords.size() > 1) {
+                                Coordinate[] coords1 = userCoords.toArray(new Coordinate[userCoords.size()]);
+                                SimpleFeature linefeature = getLineFeatureByCoord(coords1);
+                                lineCollection.add(linefeature);
+                                linecount++;
+                            }
+                            userCoords = new ArrayList<Coordinate>();
+                            userCoords.add(coord1);
+                        }
+                        previousTimestamp = timestamp;
+                    }
+                    if (userCoords.size() > 1) {
+                        Coordinate[] coords1 = userCoords.toArray(new Coordinate[userCoords.size()]);
+                        SimpleFeature linefeature = getLineFeatureByCoord(coords1);
+                        lineCollection.add(linefeature);
+                        linecount++;
+                    }
+
+                    userids.add(userid);
+                } else {
+                    continue;
+                }
+                featureBuilder.add(userid);
                 featureBuilder.add(basicObject.getString("screen_name"));
                 featureBuilder.add(basicObject.getString("created_at"));
                 featureBuilder.add(basicObject.getLong("tweet_id"));
+                previousTimestamp = 0;
 
-                SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
-                featureCollection.add(feature);
+//                SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
+//                featureCollection.add(feature);
                 count++;
             }
 
@@ -918,8 +1104,9 @@ public class plotAnalysis {
             querylayer = new FeatureLayer(featureCollection, style);
             map.addLayer(querylayer);
 
-//            trajectorylayer = getLayerLineByCoord(coords);
-//            map.addLayer(trajectorylayer);
+            Style linestyle = createLineStyle();
+            trajectorylayer = new FeatureLayer(lineCollection, linestyle);
+            map.addLayer(trajectorylayer);
 
             int numInvalid = 1;
             String msg;
@@ -932,19 +1119,26 @@ public class plotAnalysis {
                     JOptionPane.INFORMATION_MESSAGE);
         }
 
-        private Layer getLayerLineByCoord(Coordinate[] coords) throws SchemaException {
+        private Style createLineStyle() {
+            Style style = SLD.createLineStyle(Color.GREEN, 0.1F);
+            return style;
+        }
+
+        private SimpleFeature getLineFeatureByCoord(Coordinate[] coords) throws SchemaException {
             GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
             LineString line = geometryFactory.createLineString(coords);
-            SimpleFeatureType TYPE = DataUtilities.createType("test", "line", "the_geom:LineString");
-            SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder((SimpleFeatureType) TYPE);
+            SimpleFeatureType LINETYPE = DataUtilities.createType("test", "line", "the_geom:LineString");
+            SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder((SimpleFeatureType) LINETYPE);
             featureBuilder.add(line);
-            SimpleFeature feature = featureBuilder.buildFeature("LineString_Sample");
+            SimpleFeature feature = featureBuilder.buildFeature(null);
 
-            DefaultFeatureCollection lineCollection = new DefaultFeatureCollection();
-            lineCollection.add(feature);
+            return feature;
 
-            Style style = SLD.createLineStyle(Color.BLUE, 1);
-            return new FeatureLayer(lineCollection, style);
+//            DefaultFeatureCollection lineCollection = new DefaultFeatureCollection();
+//            lineCollection.add(feature);
+//
+//            Style style = SLD.createLineStyle(Color.BLACK, 0.1F);
+//            return new FeatureLayer(lineCollection, style);
         }
 
 
@@ -996,10 +1190,7 @@ public class plotAnalysis {
             Date startDate = startdatePanel.GetDate();
             Date endDate = enddatePanel.GetDate();
 
-            if (querylayer != null) {
-                map.removeLayer(querylayer);
-            }
-
+            clearLayers();
 
             //connecting mongoDB on local machine.
             MongoClient mongoClient = new MongoClient("localhost", 27017);
@@ -1013,10 +1204,31 @@ public class plotAnalysis {
 
             String[] coordinates1 = temp.split(", ");
             double[] coor = {Double.parseDouble(coordinates1[0]), Double.parseDouble(coordinates1[1])};
-            query.put("coordinates", coor);
+            if (coordinates1.length == 2) {
+                query.put("coordinates", coor);
+            }
+            else if (coordinates1.length == 4) {
+                double[] coor1 = {Double.parseDouble(coordinates1[2]), Double.parseDouble(coordinates1[3])};
+                //144.23, 146.47, -38.71, -36.90
+                //144.96, 144.98, -37.82, -37.81
+                //144.91, 145.03, -37.84, -37.77
+                //144.93, 144.99, -37.83, -37.79 - Melbourne CBD
+                //138.46, 138.74, -34.99, -34.83 - Adelaide
+                //141.37, 147.80, -39.39, -35.81
+                //144.84, 145.07, -37.88, -37.75
+                //150.48, 151.49, -34.13, -33.57
+                //144.95, 144.98, -37.82, -37.81
+
+                List<BasicDBObject> andArray = new ArrayList<BasicDBObject>();
+                andArray.add(new BasicDBObject("coordinates.0", BasicDBObjectBuilder.start("$gte", coor[0])
+                        .add("$lte", coor[1]).get()));
+                andArray.add(new BasicDBObject("coordinates.1", BasicDBObjectBuilder.start("$gte", coor1[0])
+                        .add("$lte", coor1[1]).get()));
+                query.put("$and", andArray);
+            }
             query.put("timestamp", BasicDBObjectBuilder.start("$gte", startDate.getTime()).add("$lte", endDate.getTime()).get());
 
-            DBCursor dbCursor = collection.find(query).sort(new BasicDBObject("timestamp", 1));
+            DBCursor dbCursor = collection.find(query).sort(new BasicDBObject("userid", 1).append("timestamp", 1));
 
             SimpleFeatureTypeBuilder b = new SimpleFeatureTypeBuilder();
 
@@ -1029,25 +1241,76 @@ public class plotAnalysis {
             b.add("username", String.class);
             b.add("created_at", String.class);
             b.add("tweet_id", Double.class);
+            b.add("color", String.class);
+            b.add("timestamp", Long.class);
+            b.add("size", Integer.class);
             // building the type
             final SimpleFeatureType TYPE = b.buildFeatureType();
 
             SimpleFeatureBuilder featureBuilder;
             GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
             DefaultFeatureCollection featureCollection = new DefaultFeatureCollection("internal", TYPE);
+            DefaultFeatureCollection lineCollection = new DefaultFeatureCollection();
 
             int dataLength = dbCursor.count();
             int count = 0;
+
+            ArrayList<Coordinate> userCoords = new ArrayList<Coordinate>();
+            long previousTimestamp = 0;
+            int previousUserId = 0;
+            double[] previousLocation = new double[2];
+
+            long timeThreshold;
+            try {
+                timeThreshold = Long.parseLong(userid.getText());
+            } catch (Exception e1) {
+                timeThreshold = 3600 * 500;
+            }
+            int linecount = 0;
 
             while (dbCursor.hasNext() /*&& count < 6  && daycount < 3*/) {
 
                 BasicDBObject basicObject = (BasicDBObject) dbCursor.next();
 
-//                String tmp = basicObject.get("coordinates").toString();
-//                tmp = tmp.substring(2, tmp.length() - 1);
-//            System.out.println("" + tmp);
-//                String[] coordinates = tmp.split(",");
-                Coordinate coord = new Coordinate(coor[0], coor[1]);
+                int userid = basicObject.getInt("userid");
+                long timestamp = basicObject.getLong("timestamp");
+
+                Coordinate coord;
+                if (coordinates1.length == 2) {
+                    coord = new Coordinate(coor[0], coor[1]);
+                }
+                else {
+                String tmp = basicObject.get("coordinates").toString();
+                tmp = tmp.substring(2, tmp.length() - 1);
+                String[] coordinates = tmp.split(",");
+
+                    double[] Location = new double[2];
+                    Location[0] = Double.parseDouble(coordinates[0]);
+                    Location[1] = Double.parseDouble(coordinates[1]);
+
+                    coord = new Coordinate(Location[0], Location[1]);
+
+                    Double distance = getDistance(Location, previousLocation);
+                    if (previousUserId == userid
+                            && timestamp - previousTimestamp <= timeThreshold
+                            && distance > 0
+                            && distance <= 0.05) {
+                        userCoords.add(coord);
+                    }
+                    else {
+                        if (userCoords.size() > 1) {
+                            Coordinate[] coords = userCoords.toArray(new Coordinate[userCoords.size()]);
+                            SimpleFeature linefeature = getLineFeatureByCoord(coords);
+                            lineCollection.add(linefeature);
+                            linecount++;
+                        }
+                        userCoords = new ArrayList<Coordinate>();
+                        userCoords.add(coord);
+                    }
+                    previousTimestamp = timestamp;
+                    previousUserId = userid;
+                    previousLocation = Location;
+                }
 
                 Point point = geometryFactory.createPoint(coord);
 
@@ -1055,21 +1318,46 @@ public class plotAnalysis {
                 featureBuilder.add(point);
                 featureBuilder.add(basicObject.getString("text"));
                 featureBuilder.add(Color.BLACK);
-                featureBuilder.add(basicObject.getInt("userid"));
+                featureBuilder.add(userid);
                 featureBuilder.add(basicObject.getString("screen_name"));
                 featureBuilder.add(basicObject.getString("created_at"));
                 featureBuilder.add(basicObject.getLong("tweet_id"));
 
+
+                Calendar date = Calendar.getInstance();
+                date.setTime(new Date(timestamp));
+                date.setTimeZone(TimeZone.getTimeZone("Australia/Victoria"));
+                int hourOfDay = date.get(Calendar.HOUR_OF_DAY);
+
+                int pos = hourOfDay / 4;
+                featureBuilder.add(shortColors4Day[pos]);
+                featureBuilder.add(timestamp);
+                featureBuilder.add(5);
+
                 SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
                 featureCollection.add(feature);
                 count++;
+
             }
+
+            if (coordinates1.length == 4 && userCoords.size() > 1) {
+                Coordinate[] coords = userCoords.toArray(new Coordinate[userCoords.size()]);
+                SimpleFeature linefeature = getLineFeatureByCoord(coords);
+                lineCollection.add(linefeature);
+                linecount++;
+            }
+
+            System.out.println("line count = " + linecount);
 
             mongoClient.close();
 
             Style style = createPointStyle();
             querylayer = new FeatureLayer(featureCollection, style);
             map.addLayer(querylayer);
+
+            Style linestyle = createLineStyle();
+            trajectorylayer = new FeatureLayer(lineCollection, linestyle);
+            map.addLayer(trajectorylayer);
 
             int numInvalid = 1;
             String msg;
@@ -1095,15 +1383,17 @@ public class plotAnalysis {
             Mark mark = styleFactory.getCircleMark();
 
             mark.setStroke(styleFactory.createStroke(
-                    filterFactory.literal(Color.BLUE), filterFactory.literal(1)));
+                    filterFactory.literal(Color.BLACK), filterFactory.literal(1)));
 
+//            mark.setFill(styleFactory.createFill(filterFactory.literal(Color.MAGENTA)));
             StyleBuilder sb = new StyleBuilder();
+            FilterFactory2 ff = sb.getFilterFactory();
             mark.setFill(styleFactory.createFill(/*filterFactory.literal(Color.CYAN)*/
                     sb.attributeExpression("color")));
 
             gr.graphicalSymbols().clear();
             gr.graphicalSymbols().add(mark);
-            gr.setSize(filterFactory.literal(15));
+            gr.setSize(ff.property("size"));
 
         /*
          * Setting the geometryPropertyName arg to null signals that we want to
@@ -1118,6 +1408,28 @@ public class plotAnalysis {
             style.featureTypeStyles().add(fts);
 
             return style;
+        }
+
+        private Style createLineStyle() {
+            Style style = SLD.createLineStyle(Color.GREEN, 0.1F);
+            return style;
+        }
+
+        private SimpleFeature getLineFeatureByCoord(Coordinate[] coords) throws SchemaException {
+            GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+            LineString line = geometryFactory.createLineString(coords);
+            SimpleFeatureType LINETYPE = DataUtilities.createType("test", "line", "the_geom:LineString");
+            SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder((SimpleFeatureType) LINETYPE);
+            featureBuilder.add(line);
+            SimpleFeature feature = featureBuilder.buildFeature(null);
+
+            return feature;
+
+//            DefaultFeatureCollection lineCollection = new DefaultFeatureCollection();
+//            lineCollection.add(feature);
+//
+//            Style style = SLD.createLineStyle(Color.BLACK, 0.1F);
+//            return new FeatureLayer(lineCollection, style);
         }
 
     }
@@ -1545,5 +1857,12 @@ public class plotAnalysis {
             return style;
         }
 
+    }
+
+    private static double getDistance(double[] p1, double[] p2) {
+        double lat = p1[0] - p2[0];
+        double longi = p1[1] - p2[1];
+
+        return Math.sqrt(lat * lat + longi * longi);
     }
 }
