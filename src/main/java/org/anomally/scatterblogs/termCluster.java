@@ -13,6 +13,7 @@ public class termCluster {
     private Date maxTime;
     private Date minTime;
     private Date timeCentroid;
+    private int centroidDay;
     private HashSet<extractedTerm> reg = new HashSet<extractedTerm>();
     private HashMap<Integer, Integer> users = new HashMap<Integer, Integer>();
 
@@ -34,6 +35,7 @@ public class termCluster {
         timeCentroid = term.getTimestamp();
         maxTime = term.getTimestamp();
         minTime = term.getTimestamp();
+        centroidDay = term.getTimestamp().getDay();
         reg.add(term);
         users.put(term.getUserID(), 1);
     }
@@ -46,6 +48,7 @@ public class termCluster {
         this.timeCentroid = timeCentroid;
         this.maxTime = timeCentroid;
         this.minTime = timeCentroid;
+        centroidDay = timeCentroid.getDay();
     }
 
     public double[] getCentroid() {
@@ -157,5 +160,9 @@ public class termCluster {
 
     public Date getTimeCentroid() {
         return timeCentroid;
+    }
+
+    public int getCentroidDay() {
+        return centroidDay;
     }
 }

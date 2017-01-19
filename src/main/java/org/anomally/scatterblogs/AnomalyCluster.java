@@ -198,8 +198,10 @@ public class AnomalyCluster {
     private static double getDistance(termCluster cluster, extractedTerm term) {
         double lat = cluster.getCentroid() [0] - term.getLocation()[0];
         double longi = cluster.getCentroid() [1] - term.getLocation()[1];
-        double time = cluster.getTimeCentroid().getTime() - term.getTimestamp().getTime();
-        time = time / miliSeconds_per12Hours;
+//        double time = cluster.getTimeCentroid().getTime() - term.getTimestamp().getTime();
+//        time = time / miliSeconds_per12Hours;
+
+        int time = cluster.getTimeCentroid().getDay() - term.getTimestamp().getDay();
 
         return lat * lat + longi * longi + time * time;
     }
