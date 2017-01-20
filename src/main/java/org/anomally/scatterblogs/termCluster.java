@@ -22,7 +22,7 @@ public class termCluster {
     }
 
     public float getScore() {
-        float score = reg.size()/users.size();
+        float score = (reg.size()*users.size());
         return score;
     }
 

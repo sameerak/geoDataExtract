@@ -58,7 +58,9 @@ public class AnomalyCluster {
             for (termCluster clust: termClusters.get(term)) {
 //                System.out.println("terms = " + clust.getReg().size());
 //                System.out.println("terms = " + clust.getReg().size() + ", centroid = [" + clust.getCentroid()[0] + "," + clust.getCentroid()[1] + "]");
-                clusters = clusters + "," +  clust.getCentroid()[0]+ "#" +clust.getCentroid()[1]+ "$" +clust.getTimeCentroid() + "," + clust.getReg().size() + "," + clust.getScore();
+                //distortion, location# , size, score
+                clusters = clusters + "," +  getDistortion(clust) + "," +  clust.getCentroid()[0]+ "#" +clust.getCentroid()[1] + "," + clust.getReg().size() + "," + clust.getScore();
+
                 noOfDoc += clust.getReg().size();
             }
             if (noOfDoc < maxnoOfDoc) {
@@ -108,6 +110,7 @@ public class AnomalyCluster {
             Date timestamp = new Date(Long.parseLong(basicObject.get("timestamp").toString()));
             int userID = basicObject.getInt("userid");
             double tweetID = basicObject.getDouble("tweet_id");
+            String created_at = basicObject.getString("created_at");
 
 //            List<String> res = Twokenize.tokenizeRawTweetText(tweet);
 
@@ -126,7 +129,7 @@ public class AnomalyCluster {
 //                }
 //                System.out.println(token);
                 double [] loc = {Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])};
-                extractedTerm tmpTerm = new extractedTerm(token, tweet, loc, timestamp, userID, tweetID);
+                extractedTerm tmpTerm = new extractedTerm(token, tweet, created_at, loc, timestamp, userID, tweetID);
                 if (!termClusters.containsKey(token)) {
                     termCluster newCluster = new termCluster(tmpTerm);
                     HashSet<termCluster> tmpClusterSet = new HashSet<termCluster>();
@@ -154,7 +157,8 @@ public class AnomalyCluster {
 //                    System.out.println("tmpClosestCluster centroid AFTER adding = " + tmpClosestCluster.getPrintableCentroid());
 
 //                    System.out.println("term = " + token + ", #tems = " + tmpClosestCluster.getReg().size() + ", distortion for updated cluster = " + getDistortion(tmpClosestCluster));
-                    if (getDistortion(tmpClosestCluster) > 3) {
+//                    if (getDistortion(tmpClosestCluster) > 0.0001) {
+                    if (getMaxDistance(tmpClosestCluster) > 0.01) {
 
 
                         KMeans splitter = new KMeans(tmpClosestCluster);
@@ -192,7 +196,20 @@ public class AnomalyCluster {
             sqrdDis += getDistance(updatedCluster, term);
         }
 
-        return Math.sqrt(sqrdDis / (reg.size() * 3));
+        return Math.sqrt(sqrdDis / (reg.size()/* * 3*/));
+    }
+
+    private static double getMaxDistance(termCluster updatedCluster) {
+        double[] centroid = updatedCluster.getCentroid();
+        HashSet<extractedTerm> reg = updatedCluster.getReg();
+
+        double maxDis = 0;
+        for (extractedTerm term: reg) {
+            double tempDis = getDistance(updatedCluster, term);
+            maxDis = (tempDis > maxDis) ? tempDis : maxDis;
+        }
+
+        return maxDis;
     }
 
     private static double getDistance(termCluster cluster, extractedTerm term) {
@@ -201,9 +218,10 @@ public class AnomalyCluster {
 //        double time = cluster.getTimeCentroid().getTime() - term.getTimestamp().getTime();
 //        time = time / miliSeconds_per12Hours;
 
-        int time = cluster.getTimeCentroid().getDay() - term.getTimestamp().getDay();
-
-        return lat * lat + longi * longi + time * time;
+//        int time = cluster.getTimeCentroid().getDay() - term.getTimestamp().getDay();
+//
+//        return lat * lat + longi * longi + time * time;
+        return Math.sqrt(lat * lat + longi * longi);
     }
 
     public static List<String> tokenizeStopStem(String input) throws IOException {

@@ -61,6 +61,7 @@ public class plotAnalysis {
     static DatePanel enddatePanel;
     static JTextField userid;
     static MapContent map;
+    static JCheckBox enableAnomaly;
     static Layer querylayer = null;
     static Layer trajectorylayer = null;
     static Layer userlayer = null;
@@ -180,12 +181,15 @@ public class plotAnalysis {
         datePanel.add(startdatePanel);
         datePanel.add(enddatePanel);
         datePanel.add(new JButton(new ValidateGeometryAction()));
+        datePanel.add(new JButton(new PlotAnomalyData()));
 
         toolbar.add(datePanel);
 
         JPanel userPanel = new JPanel();
         userid = new JTextField("108435619");
+        enableAnomaly = new JCheckBox("Plot anomaly", false);
         userPanel.add(userid);
+        userPanel.add(enableAnomaly);
         userPanel.add(new JButton(new PlotUserData()));
         userPanel.add(new JButton(new PlotWordData()));
         userPanel.add(new JButton(new PlotDeducedTweetLocation()));
@@ -199,7 +203,6 @@ public class plotAnalysis {
 
         toolbar.add(coorPanel);
 
-        toolbar.add(new JButton(new PlotAnomalyData()));
 //        toolbar.add(new JButton(new ExportShapefileAction()));
 
         // Display the map frame. When it is closed the application will exit
@@ -934,7 +937,80 @@ public class plotAnalysis {
             String[] restictionsString = temp.split(", ");
             int[] restrictions = {Integer.parseInt(restictionsString[0]), Integer.parseInt(restictionsString[1])};
 
+            String word = userid.getText();
+
             clearLayers();
+
+            if (enableAnomaly.isSelected()) {
+                if (termClusters == null) {
+                    termClusters = AnomalyCluster.getAnomalyset(startDate, endDate);
+                }
+
+                SimpleFeatureTypeBuilder b = new SimpleFeatureTypeBuilder();
+
+                b.setName("PlotUserDataFeatureType");
+                b.setCRS(DefaultGeographicCRS.WGS84);
+                b.add("location", Point.class);
+                b.add("text", String.class);
+                b.add("color", String.class);
+                b.add("power", Integer.class);
+                b.add("Score", Float.class);
+                b.add("size", Integer.class);
+//            b.add("username", String.class);
+//            b.add("created_at", String.class);
+//            b.add("tweet_id", Double.class);
+                // building the type
+                final SimpleFeatureType TYPE = b.buildFeatureType();
+
+                SimpleFeatureBuilder featureBuilder;
+                GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+                DefaultFeatureCollection featureCollection = new DefaultFeatureCollection("internal", TYPE);
+
+                int dataLength = termClusters.get(word).size();
+                int count = 0;
+
+                for (termCluster clust: termClusters.get(word)) {
+                        Point point = geometryFactory.createPoint(new Coordinate(clust.getCentroid()[0], clust.getCentroid()[1]));
+
+                        featureBuilder = new SimpleFeatureBuilder(TYPE);
+                        featureBuilder.add(point);
+                        String text = "";
+                        for (extractedTerm term : clust.getReg()){
+                            text += "user = " + term.getUserID() + ", text = " + term.getText()  + ", date = " + term.getCreated_at() + "\n";
+                            if (text.length() >= 700) {
+                                break;
+                            }
+                        }
+                        featureBuilder.add(text);
+                        featureBuilder.add((clust.getReg().size() % 2 == 0) ? Color.red : Color.green);
+                        featureBuilder.add(clust.getReg().size() / AnomalyCluster.getNumOfAnalyzedDocs());
+                        featureBuilder.add(clust.getScore() / AnomalyCluster.getNumOfAnalyzedDocs());
+                        featureBuilder.add(50);
+//                featureBuilder.add(basicObject.getString("screen_name"));
+//                featureBuilder.add(basicObject.getString("created_at"));
+//                featureBuilder.add(basicObject.getLong("tweet_id"));
+
+                        SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
+                        featureCollection.add(feature);
+                        count++;
+//                    }
+                }
+
+                Style style = createPointStyle();
+                querylayer = new FeatureLayer(featureCollection, style);
+                map.addLayer(querylayer);
+
+                int numInvalid = 1;
+                String msg;
+                if (numInvalid == 0) {
+                    msg = "All feature geometries are valid";
+                } else {
+                    msg = " Data size = " + dataLength;
+                }
+                JOptionPane.showMessageDialog(null, msg, "Geometry results",
+                        JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
 
             //connecting mongoDB on local machine.
             MongoClient mongoClient = new MongoClient("localhost", 27017);
@@ -945,7 +1021,6 @@ public class plotAnalysis {
 
             BasicDBObject query = new BasicDBObject();
 
-            String word = userid.getText();
             List<Integer> list = new ArrayList<Integer>();
             list.add(504409867);
             list.add(18147028); //vicRoads
@@ -967,6 +1042,9 @@ public class plotAnalysis {
             b.add("username", String.class);
             b.add("created_at", String.class);
             b.add("tweet_id", Double.class);
+            b.add("color", String.class);
+            b.add("opacity", Integer.class);
+            b.add("size", Integer.class);
             // building the type
             final SimpleFeatureType TYPE = b.buildFeatureType();
 
@@ -1005,6 +1083,7 @@ public class plotAnalysis {
                 featureBuilder.add(point);
                 featureBuilder.add(basicObject.getString("text"));
                 int userid = basicObject.getInt("userid");
+                long tweetID = basicObject.getLong("tweet_id");
                 if (!userids.contains(userid)) {
 
                     //connecting mongoDB on local machine.
@@ -1042,6 +1121,7 @@ public class plotAnalysis {
                         featureBuilder.add(userid);
                         featureBuilder.add(basicObject1.getString("screen_name"));
                         featureBuilder.add(basicObject1.getString("created_at"));
+                        long tweetID1 = basicObject1.getLong("tweet_id");
                         featureBuilder.add(basicObject1.getLong("tweet_id"));
 
                         long timestamp = basicObject1.getLong("timestamp");
@@ -1052,9 +1132,9 @@ public class plotAnalysis {
                         int hourOfDay = date.get(Calendar.HOUR_OF_DAY);
 
                         int pos = hourOfDay / 4;
-//                        featureBuilder.add(shortColors4Day[pos]);
-//                        featureBuilder.add(timestamp);
-//                        featureBuilder.add(10);
+                        featureBuilder.add((tweetID == tweetID1) ? Color.GREEN :shortColors4Day[pos]);
+                        featureBuilder.add(1);
+                        featureBuilder.add(10);
 
                         SimpleFeature feature = featureBuilder.buildFeature(null);
                         featureCollection.add(feature);
@@ -1091,6 +1171,7 @@ public class plotAnalysis {
                 featureBuilder.add(basicObject.getString("screen_name"));
                 featureBuilder.add(basicObject.getString("created_at"));
                 featureBuilder.add(basicObject.getLong("tweet_id"));
+
                 previousTimestamp = 0;
 
 //                SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
@@ -1156,11 +1237,15 @@ public class plotAnalysis {
             mark.setStroke(styleFactory.createStroke(
                     filterFactory.literal(Color.BLUE), filterFactory.literal(1)));
 
-            mark.setFill(styleFactory.createFill(filterFactory.literal(Color.CYAN)));
+//            mark.setFill(styleFactory.createFill(filterFactory.literal(Color.CYAN)));
+            StyleBuilder sb = new StyleBuilder();
+            FilterFactory2 ff = sb.getFilterFactory();
+            mark.setFill(styleFactory.createFill(/*filterFactory.literal(Color.CYAN)*/
+                    sb.attributeExpression("color"), filterFactory.literal(ff.property("opacity")/*0.5*/)));
 
             gr.graphicalSymbols().clear();
             gr.graphicalSymbols().add(mark);
-            gr.setSize(filterFactory.literal(5));
+            gr.setSize(ff.property("size"));
 
         /*
          * Setting the geometryPropertyName arg to null signals that we want to
