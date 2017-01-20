@@ -7,18 +7,20 @@ public class extractedTerm {
 
     private String term;
     private String text;
+    private String created_at;
     private double[] location;
     private Date timestamp;
     private int userID;
     private double tweetID;
 
-    public extractedTerm (String term, String text, double[] location, Date timestamp, int userID, double tweetID) {
+    public extractedTerm (String term, String text, String created_at, double[] location, Date timestamp, int userID, double tweetID) {
         this.term = term;
         this.text = text;
         this.location = location;
         this.timestamp = timestamp;
         this.userID = userID;
         this.tweetID = tweetID;
+        this.created_at = created_at;
     }
 
     public String getText() {
@@ -55,6 +57,10 @@ public class extractedTerm {
 
     public int getUserID() {
         return userID;
+    }
+
+    public String getCreated_at() {
+        return created_at;
     }
 
 //    public void setTimestamp(Date timestamp) {
