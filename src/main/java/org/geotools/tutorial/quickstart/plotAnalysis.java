@@ -19,7 +19,6 @@ import org.geotools.geometry.jts.JTSFactoryFinder;
 import org.geotools.map.FeatureLayer;
 import org.geotools.map.Layer;
 import org.geotools.map.MapContent;
-import org.geotools.nature.*;
 import org.geotools.referencing.crs.DefaultGeographicCRS;
 import org.geotools.styling.*;
 import org.geotools.swing.JMapFrame;
@@ -30,23 +29,19 @@ import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.FilterFactory;
 import org.opengis.filter.FilterFactory2;
+import org.trajectory.clustering.*;
 
 import javax.swing.*;
 import java.awt.Component;
 import java.awt.Color;
 import java.awt.event.ActionEvent;
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.OutputStreamWriter;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.Calendar;
 import java.util.regex.Pattern;
-
-import static org.anomally.scatterblogs.AnomalyCluster.miliSeconds_per12Hours;
 
 public class plotAnalysis {
     // display a data store file chooser dialog for shapefiles
@@ -64,6 +59,7 @@ public class plotAnalysis {
     static JCheckBox enableAnomaly;
     static Layer querylayer = null;
     static Layer trajectorylayer = null;
+    static ArrayList<Layer> clusterLayers = null;
     static Layer userlayer = null;
     private static JTextField coordinates;
     public static long miliSeconds_perDay = 24 * 60 * 60 * 1000;
@@ -117,6 +113,23 @@ public class plotAnalysis {
             hex2Rgb("#FF9933"),
             hex2Rgb("#FF8000"),
             hex2Rgb("#CC6600")
+    };
+    public static Color[] ClusterColor = {
+            Color.red,
+            Color.cyan,
+            Color.blue,
+            Color.yellow,
+            Color.pink,
+            Color.orange,
+            Color.gray,
+            Color.green,
+            Color.magenta,
+            Color.black,
+            Color.darkGray,
+            Color.lightGray,
+            Color.yellow.darker().darker(),
+            Color.cyan.darker().darker(),
+            Color.orange.darker().darker()
     };
 
     private static HashMap<String, HashSet<termCluster>> termClusters;
@@ -186,7 +199,7 @@ public class plotAnalysis {
         toolbar.add(datePanel);
 
         JPanel userPanel = new JPanel();
-        userid = new JTextField("108435619");
+        userid = new JTextField("300000, 0.0005, 0.5, 2, 0, 10");//new JTextField("108435619");
         enableAnomaly = new JCheckBox("Plot anomaly", false);
         userPanel.add(userid);
         userPanel.add(enableAnomaly);
@@ -197,7 +210,8 @@ public class plotAnalysis {
         toolbar.add(userPanel);
 
         JPanel coorPanel = new JPanel();
-        coordinates = new JTextField("144.84903932, -37.66990267");
+        coordinates = new JTextField("144.963, 144.969, -37.816, -37.812");//144.84903932, -37.66990267
+        //144.962, 144.969, -37.819, -37.812
         coorPanel.add(coordinates);
         coorPanel.add(new JButton(new PlotLocationUserData()));
 
@@ -216,7 +230,7 @@ public class plotAnalysis {
 
         b.setName("MyFeatureType");
         b.setCRS(DefaultGeographicCRS.WGS84);
-        b.add("location", Point.class);
+        b.add("location", TrajectoryPoint.class);
         // building the type
         final SimpleFeatureType TYPE = b.buildFeatureType();
 
@@ -261,7 +275,7 @@ public class plotAnalysis {
             tmp = tmp.substring(2, tmp.length() - 1);
 //            System.out.println("" + tmp);
             String[] coordinates = tmp.split(",");
-            Point point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
+            TrajectoryPoint point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
 
             featureBuilder = new SimpleFeatureBuilder(TYPE);
             featureBuilder.add(point);
@@ -290,6 +304,12 @@ public class plotAnalysis {
         }
         if (userlayer != null) {
             map.removeLayer(userlayer);
+        }
+        if (clusterLayers != null && clusterLayers.size() > 0) {
+            for (Layer clusterLayer : clusterLayers) {
+                map.removeLayer(clusterLayer);
+            }
+            clusterLayers = null;
         }
     }
 
@@ -783,7 +803,7 @@ public class plotAnalysis {
                     tmp = tmp.substring(2, tmp.length() - 1);
 //            System.out.println("" + tmp);
                     String[] coordinates = tmp.split(",");
-//                Point point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
+//                TrajectoryPoint point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
                     Coordinate coord = new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1]));
 
                     Point point = geometryFactory.createPoint(coord);
@@ -1073,7 +1093,7 @@ public class plotAnalysis {
                 tmp = tmp.substring(2, tmp.length() - 1);
 //            System.out.println("" + tmp);
                 String[] coordinates = tmp.split(",");
-//                Point point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
+//                TrajectoryPoint point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
                 Coordinate coord = new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1]));
 
                 Point point = geometryFactory.createPoint(coord);
@@ -1110,7 +1130,7 @@ public class plotAnalysis {
                         tmp1 = tmp1.substring(2, tmp1.length() - 1);
 //            System.out.println("" + tmp1);
                         String[] coordinates1 = tmp1.split(",");
-//                Point point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates1[0]), Double.parseDouble(coordinates1[1])));
+//                TrajectoryPoint point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates1[0]), Double.parseDouble(coordinates1[1])));
                         Coordinate coord1 = new Coordinate(Double.parseDouble(coordinates1[0]), Double.parseDouble(coordinates1[1]));
 
                         Point point1 = geometryFactory.createPoint(coord1);
@@ -1298,11 +1318,21 @@ public class plotAnalysis {
                 //144.96, 144.98, -37.82, -37.81
                 //144.91, 145.03, -37.84, -37.77
                 //144.93, 144.99, -37.83, -37.79 - Melbourne CBD
+                //144.96, 144.97, -37.82, -37.81
+                //144.962, 144.969, -37.819, -37.812
                 //138.46, 138.74, -34.99, -34.83 - Adelaide
+                //150.64, 151.42, -34.04, -33.58 - sydney
+                //160.55, 184.32, -47.77, -33.93 - NZ
                 //141.37, 147.80, -39.39, -35.81
                 //144.84, 145.07, -37.88, -37.75
                 //150.48, 151.49, -34.13, -33.57
                 //144.95, 144.98, -37.82, -37.81
+                //144.975, 144.99, -37.822, -37.81 - MCG
+                //road 144.955, 144.965, -37.82, -37.80
+                //144.65, 144.94, -37.89, -37.74 - Docklands
+
+//                collingwood|magpies|gopies|afl|pies
+//                collingwood|magpies|gopies|pies
 
                 List<BasicDBObject> andArray = new ArrayList<BasicDBObject>();
                 andArray.add(new BasicDBObject("coordinates.0", BasicDBObjectBuilder.start("$gte", coor[0])
@@ -1341,17 +1371,61 @@ public class plotAnalysis {
             int count = 0;
 
             ArrayList<Coordinate> userCoords = new ArrayList<Coordinate>();
+            ArrayList<Line> lineSet = new ArrayList<Line>();
+            ArrayList<TrajectoryPoint> userPoints = new ArrayList<TrajectoryPoint>();
             long previousTimestamp = 0;
             int previousUserId = 0;
+            long previousTweetId = 0;
+            TrajectoryPoint previousPoint = null;
             double[] previousLocation = new double[2];
+
+            temp = userid.getText();
+            String[] params = temp.split(", ");
 
             long timeThreshold;
             try {
-                timeThreshold = Long.parseLong(userid.getText());
+                timeThreshold = Long.parseLong(params[0]);
             } catch (Exception e1) {
                 timeThreshold = 3600 * 500;
             }
+
+            double eph;
+            try {
+                eph = Double.parseDouble(params[1]);
+            } catch (Exception e1) {
+                eph = 50;
+            }
+
+            double sineTheta; //10 degrees = 0.17364817766
+            try {
+                sineTheta = Double.parseDouble(params[2]);
+            } catch (Exception e1) {
+                sineTheta = 0.17364817766;
+            }
+
+            int minLn;
+            try {
+                minLn = Integer.parseInt(params[3]);
+            } catch (Exception e1) {
+                minLn = 2;
+            }
+
+            int minIt,maxIt;
+            try {
+                minIt = Integer.parseInt(params[4]);
+            } catch (Exception e1) {
+                minIt = 0;
+            }
+            try {
+                maxIt = Integer.parseInt(params[5]);
+            } catch (Exception e1) {
+                maxIt = 1;
+            }
+
+
+
             int linecount = 0;
+            int trajectoryLineID = 0;
 
             while (dbCursor.hasNext() /*&& count < 6  && daycount < 3*/) {
 
@@ -1359,6 +1433,7 @@ public class plotAnalysis {
 
                 int userid = basicObject.getInt("userid");
                 long timestamp = basicObject.getLong("timestamp");
+                long tweetID = basicObject.getLong("tweet_id");
 
                 Coordinate coord;
                 if (coordinates1.length == 2) {
@@ -1374,6 +1449,7 @@ public class plotAnalysis {
                     Location[1] = Double.parseDouble(coordinates[1]);
 
                     coord = new Coordinate(Location[0], Location[1]);
+//                    TrajectoryPoint point = new TrajectoryPoint(Location[0], Location[1], tweetID, timestamp);
 
                     Double distance = getDistance(Location, previousLocation);
                     if (previousUserId == userid
@@ -1381,20 +1457,37 @@ public class plotAnalysis {
                             && distance > 0
                             && distance <= 0.05) {
                         userCoords.add(coord);
+                        userPoints.add(new TrajectoryPoint(Location[0], Location[1], tweetID, timestamp));
+
+                        //to create lines for TACLUST without partitioning
+//                        Line line = new Line(trajectoryLineID , previousPoint, point);
+//                        lineSet.add(line);
+//                        ++trajectoryLineID;
                     }
                     else {
                         if (userCoords.size() > 1) {
                             Coordinate[] coords = userCoords.toArray(new Coordinate[userCoords.size()]);
+                            //TO create line partitions for TRACLUST
+                            if (userCoords.size() >= 2) {
+                                //partition 1 or more lines then add to the line set
+                                //to test partitioning 144.967, 144.968, -37.816, -37.815
+                                ArrayList<Line> partitionSet = TRACLUST.partitionTrajectories(trajectoryLineID, userPoints);
+                                lineSet.addAll(partitionSet);
+                                trajectoryLineID += partitionSet.size();
+                            }
                             SimpleFeature linefeature = getLineFeatureByCoord(coords);
                             lineCollection.add(linefeature);
                             linecount++;
                         }
                         userCoords = new ArrayList<Coordinate>();
                         userCoords.add(coord);
+                        userPoints = new ArrayList<TrajectoryPoint>();
+                        userPoints.add(new TrajectoryPoint(Location[0], Location[1], tweetID, timestamp));
                     }
                     previousTimestamp = timestamp;
                     previousUserId = userid;
                     previousLocation = Location;
+//                    previousPoint = point;
                 }
 
                 Point point = geometryFactory.createPoint(coord);
@@ -1406,7 +1499,7 @@ public class plotAnalysis {
                 featureBuilder.add(userid);
                 featureBuilder.add(basicObject.getString("screen_name"));
                 featureBuilder.add(basicObject.getString("created_at"));
-                featureBuilder.add(basicObject.getLong("tweet_id"));
+                featureBuilder.add(tweetID);
 
 
                 Calendar date = Calendar.getInstance();
@@ -1432,17 +1525,159 @@ public class plotAnalysis {
                 linecount++;
             }
 
-            System.out.println("line count = " + linecount);
+//            ArrayList<ArrayList<Integer>> clusterSet = TRACLUST.clusterTrajectories(lineSet, eph, sineTheta, minLn);
+            ArrayList<TCMMmicroCluster> microClusters = TCMM.clusterTrajectories(lineSet, eph);
+
+                    System.out.println("partition count = " + lineSet.size());
+//            System.out.println("TRACLUST cluster count = " + clusterSet.size());
+            System.out.println("TCMM cluster count = " + microClusters.size());
 
             mongoClient.close();
+
+
+
+            Style linestyle = createLineStyle(Color.green);
+            trajectorylayer = new FeatureLayer(lineCollection, linestyle);
+            map.addLayer(trajectorylayer);
+
+            clusterLayers = new ArrayList<Layer>();
+            //To visualize TRACLUST results
+            /*int iterations = (clusterSet.size() > maxIt) ? maxIt : clusterSet.size();
+            for (int i = minIt; i < iterations; i++) {
+                ArrayList<Integer> cluster = clusterSet.get(i);
+
+                if (cluster.size() == 0) {
+                    continue;
+                }
+
+                DefaultFeatureCollection lineCollection1 = new DefaultFeatureCollection();
+
+                for (int lineID : cluster) {
+                    Line line = lineSet.get(lineID);
+                    SimpleFeature linefeature = getLineFeatureByCoord(line.getCoordinates());
+                    lineCollection1.add(linefeature);
+                }
+
+                Style linestyle1 = createLineStyle(ClusterColor[i % ClusterColor.length]);
+                clusterLayers.add(new FeatureLayer(lineCollection1, linestyle1));
+                map.addLayer(clusterLayers.get(i - minIt));
+            }*/
+            //end of TRACLUST visualisation process
+
+            DefaultFeatureCollection lineCollection1 = new DefaultFeatureCollection(),
+                    lineCollection2 = new DefaultFeatureCollection();
+
+            //To visualize trajectory partitions
+
+            for (int i = 0; i < lineSet.size(); i++) {
+                Line partition = lineSet.get(i);
+
+                SimpleFeature linefeature = getLineFeatureByCoord(partition.getCoordinates());
+                lineCollection1.add(linefeature);
+            }
+            //end of visualizing trajectory partitions
+
+            //To visualize TCMM micro cluster results
+
+            //if plot anomaly checkbox is NOT checked
+            if (!enableAnomaly.isSelected()) { //then display all microcluster representation lines
+                for (int i = 0; i < microClusters.size(); i++) {
+                    TCMMmicroCluster cluster = microClusters.get(i);
+                    ArrayList<Integer> lineIDs = cluster.getLineIDs();
+
+                    if (lineIDs.size() <= minLn) {
+                        continue;
+                    }
+
+
+                    //create center point add add to query layer
+                    Coordinate coord = new Coordinate(cluster.getCenterPoint().getX(), cluster.getCenterPoint().getY());
+                    Point point = geometryFactory.createPoint(coord);
+
+                    featureBuilder = new SimpleFeatureBuilder(TYPE);
+                    featureBuilder.add(point);
+                    featureBuilder.add("clusterID = " + i);
+                    featureBuilder.add(Color.BLACK);
+                    featureBuilder.add(1);
+                    featureBuilder.add("angle = " + cluster.getTheta());
+                    featureBuilder.add("N = " + lineIDs.size());
+                    featureBuilder.add(1);
+                    featureBuilder.add(Color.cyan);
+                    featureBuilder.add(1);
+                    featureBuilder.add(6);
+
+                    SimpleFeature feature = featureBuilder.buildFeature("cluster" + i);
+                    featureCollection.add(feature);
+
+                    SimpleFeature linefeature = getLineFeatureByCoord(cluster.getCoordinates());
+                    lineCollection2.add(linefeature);
+                }
+            } else { //else display all lines represented by micro cluster specified by minLn param
+                TCMMmicroCluster cluster = microClusters.get(minLn);
+                ArrayList<Integer> lineIDs = cluster.getLineIDs();
+                //create center point add add to query layer
+                Coordinate coord = new Coordinate(cluster.getCenterPoint().getX(), cluster.getCenterPoint().getY());
+                Point point = geometryFactory.createPoint(coord);
+
+                featureBuilder = new SimpleFeatureBuilder(TYPE);
+                featureBuilder.add(point);
+                featureBuilder.add("clusterID = " + minLn);
+                featureBuilder.add(Color.BLACK);
+                featureBuilder.add(1);
+                featureBuilder.add("angle = " + cluster.getTheta());
+                featureBuilder.add("N = " + lineIDs.size());
+                featureBuilder.add(1);
+                featureBuilder.add(Color.orange);
+                featureBuilder.add(1);
+                featureBuilder.add(10);
+
+                SimpleFeature feature = featureBuilder.buildFeature("cluster" + minLn);
+                featureCollection.add(feature);
+
+                SimpleFeature linefeature = getLineFeatureByCoord(cluster.getCoordinates());
+                lineCollection2.add(linefeature);
+
+                for (int lineID : lineIDs) {
+                    Line line = lineSet.get(lineID);
+
+                    //create center point add add to query layer
+                    coord = new Coordinate(line.getCenterPoint().getX(), line.getCenterPoint().getY());
+                    point = geometryFactory.createPoint(coord);
+
+                    featureBuilder = new SimpleFeatureBuilder(TYPE);
+                    featureBuilder.add(point);
+                    featureBuilder.add("lineID = " + lineID);
+                    featureBuilder.add(Color.BLACK);
+                    featureBuilder.add(1);
+                    featureBuilder.add("angle = " + line.getTheta());
+                    featureBuilder.add("created_at");
+                    featureBuilder.add(1);
+                    featureBuilder.add(Color.cyan);
+                    featureBuilder.add(1);
+                    featureBuilder.add(6);
+
+                    feature = featureBuilder.buildFeature("line" + lineID);
+                    featureCollection.add(feature);
+
+                    SimpleFeature linefeature1 = getLineFeatureByCoord(line.getCoordinates());
+                    lineCollection2.add(linefeature1);
+                }
+            }
+
+            Style linestyle1 = createLineStyle(Color.red);
+            clusterLayers.add(new FeatureLayer(lineCollection1, linestyle1));
+            map.addLayer(clusterLayers.get(0));
+
+            Style linestyle2 = createLineStyle(Color.blue);
+            clusterLayers.add(new FeatureLayer(lineCollection2, linestyle2));
+            map.addLayer(clusterLayers.get(1));
+
+
+            //end of TCMM micro cluster visualisation process
 
             Style style = createPointStyle();
             querylayer = new FeatureLayer(featureCollection, style);
             map.addLayer(querylayer);
-
-            Style linestyle = createLineStyle();
-            trajectorylayer = new FeatureLayer(lineCollection, linestyle);
-            map.addLayer(trajectorylayer);
 
             int numInvalid = 1;
             String msg;
@@ -1495,8 +1730,8 @@ public class plotAnalysis {
             return style;
         }
 
-        private Style createLineStyle() {
-            Style style = SLD.createLineStyle(Color.GREEN, 0.1F);
+        private Style createLineStyle(Color color) {
+            Style style = SLD.createLineStyle(color, 0.1F);
             return style;
         }
 
@@ -1529,6 +1764,10 @@ public class plotAnalysis {
         }
 
         public void action(ActionEvent e) throws Throwable {
+
+                map.removeLayer(trajectorylayer);
+            return;
+/*
             Date startDate = startdatePanel.GetDate();
             Date endDate = enddatePanel.GetDate();
 
@@ -1584,8 +1823,8 @@ public class plotAnalysis {
 //                featureBuilder.add(basicObject.getString("screen_name"));
 //                featureBuilder.add(basicObject.getString("created_at"));
 //                featureBuilder.add(basicObject.getLong("tweet_id"));
-
-                        SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
+*/
+                   /*     SimpleFeature feature = featureBuilder.buildFeature("" + *//*basicObject.getLong("tweet_id")*//*count);
                         featureCollection.add(feature);
                         count++;
                     }
@@ -1604,7 +1843,7 @@ public class plotAnalysis {
                 msg = " Data size = " + dataLength;
             }
             JOptionPane.showMessageDialog(null, msg, "Geometry results",
-                    JOptionPane.INFORMATION_MESSAGE);
+                    JOptionPane.INFORMATION_MESSAGE);*/
         }
 
 
@@ -1759,7 +1998,7 @@ public class plotAnalysis {
                 tmp = tmp.substring(2, tmp.length() - 1);
 //            System.out.println("" + tmp);
                 String[] coordinates = tmp.split(",");
-//                Point point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
+//                TrajectoryPoint point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
                 Coordinate coord = new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1]));
 
                 Point point1 = geometryFactory1.createPoint(coord);
@@ -1875,7 +2114,7 @@ public class plotAnalysis {
             tmp = tmp.substring(2, tmp.length() - 1);
 //            System.out.println("" + tmp);
             String[] coordinates = tmp.split(",");
-//                Point point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
+//                TrajectoryPoint point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
             Coordinate coord = new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1]));
 
             Point point = geometryFactory.createPoint(coord);
