@@ -102,7 +102,7 @@ public class SemanticLocationCluster {
             }
 //            System.out.println("" + tmp);
 //            String[] coordinates = tmploc.split(",");
-//            Point point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
+//            TrajectoryPoint point = geometryFactory.createPoint(new Coordinate(Double.parseDouble(coordinates[0]), Double.parseDouble(coordinates[1])));
 
             count++;
         }
