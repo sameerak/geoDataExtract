@@ -48,13 +48,13 @@ public class KMeans {
     //Initializes the process
     /*public void init() {
         //Create Points
-//        points = Point.createRandomPoints(MIN_COORDINATE,MAX_COORDINATE,NUM_POINTS);
+//        points = TrajectoryPoint.createRandomPoints(MIN_COORDINATE,MAX_COORDINATE,NUM_POINTS);
 
         //Create Clusters
         //Set Random Centroids
         for (int i = 0; i < NUM_CLUSTERS; i++) {
             Cluster cluster = new Cluster(i);
-            Point centroid = Point.createRandomPoint(MIN_COORDINATE,MAX_COORDINATE);
+            TrajectoryPoint centroid = TrajectoryPoint.createRandomPoint(MIN_COORDINATE,MAX_COORDINATE);
             cluster.setCentroid(centroid);
             clusters.add(cluster);
         }
