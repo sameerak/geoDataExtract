@@ -123,7 +123,7 @@ public class TCMM {
                 != isPointClockwiseFromLine(shorterEndpoints[1], longer);
     }
 
-    private static boolean isPointClockwiseFromLine(TrajectoryPoint point, Line line) {
+    public static boolean isPointClockwiseFromLine(TrajectoryPoint point, Line line) {
         double crossProduct = ((line.getEndPoints()[0].getX() - point.getX())
                 * (line.getEndPoints()[1].getY() - point.getY()))
                 - ((line.getEndPoints()[1].getX() - point.getX())

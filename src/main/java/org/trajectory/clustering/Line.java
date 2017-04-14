@@ -1,16 +1,21 @@
 package org.trajectory.clustering;
 
 import com.vividsolutions.jts.geom.Coordinate;
+import org.geotools.geometry.jts.JTS;
+import org.opengis.referencing.crs.CoordinateReferenceSystem;
+import org.opengis.referencing.operation.TransformException;
 
-public class Line implements LineInterface {
+public class Line implements LineInterface, Comparable<Line> {
     private final int ID;
     private TrajectoryPoint[] endPoints = new TrajectoryPoint[2];
     private long timeDiff;
-    private double length, a, b, c;
+    private double length, a, b, c, weight, orthodromicDistance;
     private boolean visited = false;
     private int clusterID;
     private double theta, directionalTheta; // holds the angle between x axis and line
     private TrajectoryPoint centerPoint;
+    private int[] adjacentNeighbours = new int[2];
+    private int numOfNeighbours = 0;
 
     public Line(int ID, TrajectoryPoint point1, TrajectoryPoint point2){
         endPoints[0] = point1;
@@ -136,5 +141,76 @@ public class Line implements LineInterface {
 
     public double getDirectionalTheta() {
         return directionalTheta;
+    }
+
+    /**
+     * compare 2 lines based on their distances
+     * @param line
+     * @return
+     */
+    public int compareTo(Line line) {
+        return orthodromicDistance < line.getOrthodromicDistance() ? -1 :
+                orthodromicDistance > line.getOrthodromicDistance() ? 1 : 0;
+    }
+
+    public double getWeight() {
+        return weight;
+    }
+
+    public void setWeight(double weight) {
+        this.weight = weight;
+    }
+
+    public void addConnection() {
+        endPoints[0].addConnection(this);
+        endPoints[1].addConnection(this);
+    }
+
+    public void clearEndPointShortestPaths() {
+        endPoints[0].setShortestPath(null);
+        endPoints[0].setVisited(false);
+        endPoints[1].setShortestPath(null);
+        endPoints[1].setVisited(false);
+    }
+
+    public double getOrthodromicDistance() {
+        return orthodromicDistance;
+    }
+
+    public void setOrthodromicDistance(double orthodromicDistance) {
+        this.orthodromicDistance = orthodromicDistance;
+    }
+
+    public Coordinate getCenterPointCoordinate() {
+        return new Coordinate(centerPoint.getX(), centerPoint.getY());
+    }
+
+    public void addNeighbour(int neighbourID) {
+        adjacentNeighbours[numOfNeighbours] = neighbourID;
+        ++numOfNeighbours;
+    }
+
+    public int[] getAdjacentNeighbours() {
+        return adjacentNeighbours;
+    }
+
+    public int getNumOfNeighbours() {
+        return numOfNeighbours;
+    }
+
+    public boolean replaceAdjacentNeighbour(int oldVal, int newVal) {
+        if (adjacentNeighbours[0] == oldVal) {
+            adjacentNeighbours[0] = newVal;
+            return true;
+        } else if (adjacentNeighbours[1] == oldVal) {
+            adjacentNeighbours[1] = newVal;
+            return true;
+        }
+        return false;
+    }
+
+    public void setOrthodromicDistance(CoordinateReferenceSystem sourceCRS) throws TransformException {
+        this.orthodromicDistance = JTS.orthodromicDistance(endPoints[0].getCoordinate(),
+                endPoints[1].getCoordinate(), sourceCRS) * 1000;
     }
 }
