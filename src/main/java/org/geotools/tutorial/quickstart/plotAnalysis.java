@@ -29,6 +29,7 @@ import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.feature.simple.SimpleFeatureType;
 import org.opengis.filter.FilterFactory;
 import org.opengis.filter.FilterFactory2;
+import org.sameera.geo.concavehull.KelpFusion;
 import org.trajectory.clustering.*;
 
 import javax.swing.*;
@@ -63,6 +64,7 @@ public class plotAnalysis {
     static Layer userlayer = null;
     private static JTextField coordinates;
     public static long miliSeconds_perDay = 24 * 60 * 60 * 1000;
+    public static KelpFusion kelpFusion = null;
 
     private static HashMap<Integer, ArrayList<TweetPOJO>> userSets = new HashMap<Integer, ArrayList<TweetPOJO>>();
 
@@ -210,7 +212,7 @@ public class plotAnalysis {
         toolbar.add(userPanel);
 
         JPanel coorPanel = new JPanel();
-        coordinates = new JTextField("144.963, 144.969, -37.816, -37.812");//144.84903932, -37.66990267
+        coordinates = new JTextField("144.9673, 144.9675, -37.8154, -37.8152, 10");//144.84903932, -37.66990267
         //144.962, 144.969, -37.819, -37.812
         coorPanel.add(coordinates);
         coorPanel.add(new JButton(new PlotLocationUserData()));
@@ -431,7 +433,6 @@ public class plotAnalysis {
         return layer;
     }
 
-
     static Layer addPoint(double latitude, double longitude) {
         SimpleFeatureTypeBuilder b = new SimpleFeatureTypeBuilder();
 
@@ -466,10 +467,8 @@ public class plotAnalysis {
 
             long diff = startDate.getTime() - endDate.getTime();
 
-            if (querylayer != null) {
-                map.removeLayer(querylayer);
-            }
-
+            clearLayers();
+            clusterLayers = new ArrayList<Layer>();
 
             //connecting mongoDB on local machine.
             MongoClient mongoClient = new MongoClient("localhost", 27017);
@@ -512,6 +511,29 @@ public class plotAnalysis {
             query.put("timestamp", BasicDBObjectBuilder.start("$gte", startDate.getTime()).add("$lte", endDate.getTime()).get());
             query.put("userid",  BasicDBObjectBuilder.start("$not", new BasicDBObject("$in", list)).get());
 
+
+            String temp = coordinates.getText();
+            double t = 10;
+            String[] coordinates1 = temp.split(", ");
+            if (coordinates1.length == 5) {
+                double[] coor = {Double.parseDouble(coordinates1[0]), Double.parseDouble(coordinates1[1]),
+                        Double.parseDouble(coordinates1[2]), Double.parseDouble(coordinates1[3])};
+                List<BasicDBObject> andArray = new ArrayList<BasicDBObject>();
+                andArray.add(new BasicDBObject("coordinates.0", BasicDBObjectBuilder.start("$gte", coor[0])
+                        .add("$lte", coor[1]).get()));
+                andArray.add(new BasicDBObject("coordinates.1", BasicDBObjectBuilder.start("$gte", coor[2])
+                        .add("$lte", coor[3]).get()));
+                query.put("$and", andArray);
+
+                String area = coordinates1[0] + "," + coordinates1[1] + "," + coordinates1[2] + "," + coordinates1[3];
+
+                if (kelpFusion == null || !area.equals(kelpFusion.getArea())) {
+                    kelpFusion = new KelpFusion(area, map.getCoordinateReferenceSystem());
+                }
+
+                t = Double.parseDouble(coordinates1[4]);
+            }
+
             DBCursor dbCursor = collection.find(query).sort(new BasicDBObject(/*"userid", 1).append(*/"timestamp",1));
 
             Date oldDate = null,checkdate;
@@ -534,7 +556,8 @@ public class plotAnalysis {
             GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
             DefaultFeatureCollection featureCollection = new DefaultFeatureCollection("internal", TYPE);
 
-//            DefaultFeatureCollection lineCollection = new DefaultFeatureCollection();
+            DefaultFeatureCollection lineCollection = new DefaultFeatureCollection();
+            DefaultFeatureCollection lineCollection1 = new DefaultFeatureCollection();
 
             int dataLength = dbCursor.count();
             int[] comp = {0, 0, 0, 0, 0, 0};
@@ -542,6 +565,7 @@ public class plotAnalysis {
 //
 //            int previousUserID = 0;
 //            ArrayList<Coordinate> userCoords = new ArrayList<Coordinate>();
+            ArrayList<TrajectoryPoint> pointSet = new ArrayList<TrajectoryPoint>();
 
             while (dbCursor.hasNext() /*&& count < 6  && daycount < 3*/) {
                 BasicDBObject basicObject = (BasicDBObject) dbCursor.next();
@@ -583,6 +607,10 @@ public class plotAnalysis {
                         userid, basicObject.getString("screen_name"),
                         basicObject.getString("created_at"), basicObject.getLong("tweet_id"), timestamp);
 
+                TrajectoryPoint trajPoint = new TrajectoryPoint(location[0], location[1],
+                        basicObject.getLong("tweet_id"), timestamp);
+                pointSet.add(trajPoint);
+
 //                if (userSets.containsKey(userid)) {
 //                    userSets.get(userid).add(tweet);
 //                } else {
@@ -611,15 +639,90 @@ public class plotAnalysis {
             mongoClient.close();
             DateFormat df1 = new SimpleDateFormat("EEE MMM dd HH:mm:ss ZZZZZ yyyy");
 
+            ArrayList<Line> SPG = kelpFusion.GetShortestPathGraph(pointSet, t);
+//            ArrayList<Line> G = kelpFusion.createReachabilityGraph(pointSet);
+//            ArrayList<Line> DG = kelpFusion.createDelaunayGraph(pointSet);
+            HashMap<String, Line> lineSet = kelpFusion.lineSet;
+
+//            for (int i = 0; i < /*20*/DG.size(); i++) {
+//                Line partition = DG.get(i);
+
+                /*Coordinate coord = new Coordinate(partition.getCenterPoint().getX(), partition.getCenterPoint().getY());
+                Point point = geometryFactory.createPoint(coord);
+                featureBuilder = new SimpleFeatureBuilder(TYPE);
+                featureBuilder.add(point);
+                featureBuilder.add("DG_ID = " + i);
+                featureBuilder.add(1);
+                featureBuilder.add("line id = " + partition.getID());
+                featureBuilder.add("created_at");
+                featureBuilder.add("weight = ");
+                featureBuilder.add((partition.getID() == 100) ? Color.magenta : Color.cyan);
+
+                SimpleFeature feature = featureBuilder.buildFeature("line" + i);
+                featureCollection.add(feature);*/
+
+//                SimpleFeature linefeature = getLineFeatureByCoord(partition.getCoordinates());
+//                lineCollection1.add(linefeature);
+//            }
+
+            int n = 0;
+            for (Line line : lineSet.values()) {
+
+                Coordinate coord = new Coordinate(line.getCenterPoint().getX(), line.getCenterPoint().getY());
+                Point point = geometryFactory.createPoint(coord);
+                featureBuilder = new SimpleFeatureBuilder(TYPE);
+                featureBuilder.add(point);
+                featureBuilder.add("DG_ID = " + n);
+                featureBuilder.add(1);
+                featureBuilder.add("line id = " + line.getID());
+                featureBuilder.add("created_at");
+                featureBuilder.add("neighbours = " + line.getAdjacentNeighbours()[0] + " , " +
+                        line.getAdjacentNeighbours()[1]);
+                featureBuilder.add(Color.cyan);
+
+                SimpleFeature feature = featureBuilder.buildFeature("line" + n);
+                featureCollection.add(feature);
+
+                SimpleFeature linefeature = getLineFeatureByCoord(line.getCoordinates());
+                lineCollection1.add(linefeature);
+                ++n;
+            }
+
+
+            Style linestyle2 = createLineStyle(Color.red);
+            clusterLayers.add(new FeatureLayer(lineCollection1, linestyle2));
+//            if (enableAnomaly.isSelected()) {
+            map.addLayer(clusterLayers.get(0));
+//            }
+
+            for (int i = 0; i < /*20*/SPG.size(); i++) {
+                Line partition = SPG.get(i);
+
+                /*Coordinate coord = new Coordinate(partition.getCenterPoint().getX(), partition.getCenterPoint().getY());
+                Point point = geometryFactory.createPoint(coord);
+                featureBuilder = new SimpleFeatureBuilder(TYPE);
+                featureBuilder.add(point);
+                featureBuilder.add("lineID = " + i);
+                featureBuilder.add(1);
+                featureBuilder.add("length = " + partition.getOrthodromicDistance());
+                featureBuilder.add("created_at");
+                featureBuilder.add("weight = " + partition.getWeight());
+                featureBuilder.add(Color.cyan);
+
+                SimpleFeature feature = featureBuilder.buildFeature("line" + i);
+                featureCollection.add(feature);*/
+
+                SimpleFeature linefeature = getLineFeatureByCoord(partition.getCoordinates());
+                lineCollection.add(linefeature);
+            }
+
+            Style linestyle1 = createLineStyle(Color.BLUE);
+            clusterLayers.add(new FeatureLayer(lineCollection, linestyle1));
+            map.addLayer(clusterLayers.get(1));
+
             Style style = createPointStyle();
             querylayer = new FeatureLayer(featureCollection, style);
             map.addLayer(querylayer);
-
-
-//            Style linestyle = createLineStyle();
-//            trajectorylayer = new FeatureLayer(lineCollection, linestyle);
-//
-//            map.addLayer(trajectorylayer);
 
             int numInvalid = 1;
             String msg;
@@ -671,8 +774,8 @@ public class plotAnalysis {
             return style;
         }
 
-        private Style createLineStyle() {
-            Style style = SLD.createLineStyle(Color.GREEN, 0.1F);
+        private Style createLineStyle(Color color) {
+            Style style = SLD.createLineStyle(color, 0.5F);
             return style;
         }
 
@@ -685,14 +788,7 @@ public class plotAnalysis {
             SimpleFeature feature = featureBuilder.buildFeature(null);
 
             return feature;
-
-//            DefaultFeatureCollection lineCollection = new DefaultFeatureCollection();
-//            lineCollection.add(feature);
-//
-//            Style style = SLD.createLineStyle(Color.BLACK, 0.1F);
-//            return new FeatureLayer(lineCollection, style);
         }
-
     }
 
     static class PlotUserData extends SafeAction {
@@ -1306,13 +1402,14 @@ public class plotAnalysis {
 
             BasicDBObject query = new BasicDBObject();
             String temp = coordinates.getText();
+            double t = 3;
 
             String[] coordinates1 = temp.split(", ");
             double[] coor = {Double.parseDouble(coordinates1[0]), Double.parseDouble(coordinates1[1])};
             if (coordinates1.length == 2) {
                 query.put("coordinates", coor);
             }
-            else if (coordinates1.length == 4) {
+            else if (coordinates1.length >= 4) {
                 double[] coor1 = {Double.parseDouble(coordinates1[2]), Double.parseDouble(coordinates1[3])};
                 //144.23, 146.47, -38.71, -36.90
                 //144.96, 144.98, -37.82, -37.81
@@ -1340,6 +1437,16 @@ public class plotAnalysis {
                 andArray.add(new BasicDBObject("coordinates.1", BasicDBObjectBuilder.start("$gte", coor1[0])
                         .add("$lte", coor1[1]).get()));
                 query.put("$and", andArray);
+
+                String area = coordinates1[0] + "," + coordinates1[1] + "," + coordinates1[2] + "," + coordinates1[3];
+
+                if (kelpFusion == null || !area.equals(kelpFusion.getArea())) {
+                    kelpFusion = new KelpFusion(area, map.getCoordinateReferenceSystem());
+                }
+
+                if (coordinates1.length == 5) {
+                    t = Double.parseDouble(coordinates1[4]);
+                }
             }
             query.put("timestamp", BasicDBObjectBuilder.start("$gte", startDate.getTime()).add("$lte", endDate.getTime()).get());
 
@@ -1378,6 +1485,7 @@ public class plotAnalysis {
             long previousTweetId = 0;
             TrajectoryPoint previousPoint = null;
             double[] previousLocation = new double[2];
+            ArrayList<TrajectoryPoint> pointSet = new ArrayList<TrajectoryPoint>();
 
             temp = userid.getText();
             String[] params = temp.split(", ");
@@ -1452,12 +1560,14 @@ public class plotAnalysis {
 //                    TrajectoryPoint point = new TrajectoryPoint(Location[0], Location[1], tweetID, timestamp);
 
                     Double distance = getDistance(Location, previousLocation);
+                    pointSet.add(new TrajectoryPoint(Location[0], Location[1], tweetID, timestamp));
                     if (previousUserId == userid
                             && timestamp - previousTimestamp <= timeThreshold
                             && distance > 0
                             && distance <= 0.05) {
                         userCoords.add(coord);
                         userPoints.add(new TrajectoryPoint(Location[0], Location[1], tweetID, timestamp));
+
 
                         //to create lines for TACLUST without partitioning
 //                        Line line = new Line(trajectoryLineID , previousPoint, point);
@@ -1518,7 +1628,7 @@ public class plotAnalysis {
 
             }
 
-            if (coordinates1.length == 4 && userCoords.size() > 1) {
+            if (coordinates1.length >= 4 && userCoords.size() > 1) {
                 Coordinate[] coords = userCoords.toArray(new Coordinate[userCoords.size()]);
                 SimpleFeature linefeature = getLineFeatureByCoord(coords);
                 lineCollection.add(linefeature);
@@ -1526,11 +1636,14 @@ public class plotAnalysis {
             }
 
 //            ArrayList<ArrayList<Integer>> clusterSet = TRACLUST.clusterTrajectories(lineSet, eph, sineTheta, minLn);
-            ArrayList<TCMMmicroCluster> microClusters = TCMM.clusterTrajectories(lineSet, eph);
+//            ArrayList<TCMMmicroCluster> microClusters = TCMM.clusterTrajectories(lineSet, eph);
 
                     System.out.println("partition count = " + lineSet.size());
+            ArrayList<Line> SPG = kelpFusion.GetShortestPathGraph(pointSet, t);
+            ArrayList<Line> G = kelpFusion.createReachabilityGraph(pointSet);
+
 //            System.out.println("TRACLUST cluster count = " + clusterSet.size());
-            System.out.println("TCMM cluster count = " + microClusters.size());
+//            System.out.println("TCMM cluster count = " + microClusters.size());
 
             mongoClient.close();
 
@@ -1569,18 +1682,24 @@ public class plotAnalysis {
 
             //To visualize trajectory partitions
 
-            for (int i = 0; i < lineSet.size(); i++) {
-                Line partition = lineSet.get(i);
+            for (int i = 0; i < /*20*/G.size(); i++) {
+                Line partition = G.get(i);
 
                 SimpleFeature linefeature = getLineFeatureByCoord(partition.getCoordinates());
                 lineCollection1.add(linefeature);
+            }
+
+            Style linestyle2 = createLineStyle(Color.red);
+            clusterLayers.add(new FeatureLayer(lineCollection1, linestyle2));
+            if (enableAnomaly.isSelected()) {
+                map.addLayer(clusterLayers.get(0));
             }
             //end of visualizing trajectory partitions
 
             //To visualize TCMM micro cluster results
 
             //if plot anomaly checkbox is NOT checked
-            if (!enableAnomaly.isSelected()) { //then display all microcluster representation lines
+            /*if (!enableAnomaly.isSelected()) { //then display all microcluster representation lines
                 for (int i = 0; i < microClusters.size(); i++) {
                     TCMMmicroCluster cluster = microClusters.get(i);
                     ArrayList<Integer> lineIDs = cluster.getLineIDs();
@@ -1662,18 +1781,45 @@ public class plotAnalysis {
                     SimpleFeature linefeature1 = getLineFeatureByCoord(line.getCoordinates());
                     lineCollection2.add(linefeature1);
                 }
-            }
+            }*/
 
-            Style linestyle1 = createLineStyle(Color.red);
-            clusterLayers.add(new FeatureLayer(lineCollection1, linestyle1));
-            map.addLayer(clusterLayers.get(0));
-
-            Style linestyle2 = createLineStyle(Color.blue);
-            clusterLayers.add(new FeatureLayer(lineCollection2, linestyle2));
-            map.addLayer(clusterLayers.get(1));
+//            Style linestyle1 = createLineStyle(Color.red);
+//            clusterLayers.add(new FeatureLayer(lineCollection1, linestyle1));
+//            map.addLayer(clusterLayers.get(0));
+//
+//            Style linestyle2 = createLineStyle(Color.blue);
+//            clusterLayers.add(new FeatureLayer(lineCollection2, linestyle2));
+//            map.addLayer(clusterLayers.get(1));
 
 
             //end of TCMM micro cluster visualisation process
+
+
+
+            for (int i = 0; i < /*20*/SPG.size(); i++) {
+                Line partition = SPG.get(i);
+
+                /*Coordinate coord = new Coordinate(partition.getCenterPoint().getX(), partition.getCenterPoint().getY());
+                Point point = geometryFactory.createPoint(coord);
+                featureBuilder = new SimpleFeatureBuilder(TYPE);
+                featureBuilder.add(point);
+                featureBuilder.add("lineID = " + i);
+                featureBuilder.add(1);
+                featureBuilder.add("length = " + partition.getOrthodromicDistance());
+                featureBuilder.add("created_at");
+                featureBuilder.add("weight = " + partition.getWeight());
+                featureBuilder.add(Color.cyan);*/
+
+//                SimpleFeature feature = featureBuilder.buildFeature("line" + i);
+//                featureCollection.add(feature);
+
+                SimpleFeature linefeature = getLineFeatureByCoord(partition.getCoordinates());
+                lineCollection2.add(linefeature);
+            }
+
+            Style linestyle1 = createLineStyle(Color.BLUE);
+            clusterLayers.add(new FeatureLayer(lineCollection2, linestyle1));
+            map.addLayer(clusterLayers.get(1));
 
             Style style = createPointStyle();
             querylayer = new FeatureLayer(featureCollection, style);
@@ -1765,7 +1911,13 @@ public class plotAnalysis {
 
         public void action(ActionEvent e) throws Throwable {
 
-                map.removeLayer(trajectorylayer);
+            //at the click of a button make query layer visible and not
+            if (querylayer != null) {
+                querylayer.setVisible(!querylayer.isVisible());
+            }
+            if (clusterLayers.get(1) != null) {
+                clusterLayers.get(1).setVisible(!clusterLayers.get(1).isVisible());
+            }
             return;
 /*
             Date startDate = startdatePanel.GetDate();
