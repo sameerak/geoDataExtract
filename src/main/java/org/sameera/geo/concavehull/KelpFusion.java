@@ -44,17 +44,19 @@ public class KelpFusion {
     }
 
     public ArrayList<Line> GetShortestPathGraph(ArrayList<TrajectoryPoint> pointSet, double t) throws TransformException {
-        //Create G = all point pair line set
         //Note: lines in G should be sorted in length ascending order
         System.out.println("started SPG calculation !!!!!!!!!!!!!!");
         if (G == null) {
-//            G = createReachabilityGraph(pointSet);
+//            G = createReachabilityGraph(pointSet); // this is suggested by original paper , Cost = O(n^2)
+            // as creation of reachability graph takes long time for tweet data
+            // We are using Delaunay Triangulation  , Cost = O(n*lg(n))
             G = createDelaunayGraph(pointSet);
         }
         System.out.println("G calculation FINISHED !!!!!!!!!!!!!! G.size = " + G.size());
 
+        //if there is a already created SPG
         if (SPG != null && previousT == t) {
-            return SPG;
+            return SPG; //return it
         }
 
         previousT = t;
@@ -63,8 +65,8 @@ public class KelpFusion {
         //implements shortest path graph creation from KelpFusion paper
         int progress = 0,added = 0;
         for (Line gLine: G) {
-//            ArrayList<Line> shortestPathFromSPG = getShortestPath(gLine, SPG);
-            ArrayList<Line> shortestPathFromSPG = getShortestPathAStar(gLine, SPG, t);
+//            ArrayList<Line> shortestPathFromSPG = getShortestPath(gLine, SPG); //uses dijkstra's algorithm
+            ArrayList<Line> shortestPathFromSPG = getShortestPathAStar(gLine, SPG, t); //uses modified A* algo
             Coordinate[] endpoints = gLine.getCoordinates();
 //            double length = JTS.orthodromicDistance(endpoints[0], endpoints[1], sourceCRS) * 1000;
 //            double length = gLine.getLength(); //with this value all the lengths become less than 1
@@ -156,7 +158,7 @@ public class KelpFusion {
      *
      * @param gLine provides 2 end points to calculate shortest path in between
      * @param spg
-     * @param t
+     * @param t uses to take the power of the direct distance between 2 points to create the heuristic
      * @return shortest path calculated with lines contained in spg
      */
     private ArrayList<Line> getShortestPathAStar(Line gLine, ArrayList<Line> spg, double t) throws TransformException {
@@ -210,14 +212,16 @@ public class KelpFusion {
                     otherEndPoint.setShortestPath(tmpShortestPath);
                 }
 
+                //if process meets target before processing all points
                 if (otherEndPoint.getTweetID() == endPoints[1].getTweetID()){
                     return tmpShortestPath;
                 }
+
                 if (!otherEndPoint.isVisited() && !points_to_visit.contains(otherEndPoint.getTweetID())) {
                     double distanceToTarget = JTS.orthodromicDistance(otherEndPoint.getCoordinate(),
                             endPoints[1].getCoordinate(), sourceCRS) * 1000;
 
-                    //check may need to power up distanceToTarget by t - ADDED
+                    //check to power up distanceToTarget by t - ADDED
                     otherEndPoint.setDistanceToTarget(tmpPathWeight + Math.pow(distanceToTarget, t));
                     points_to_visit.add(otherEndPoint.getTweetID());
                     pointQueue.add(otherEndPoint);
@@ -225,6 +229,7 @@ public class KelpFusion {
             }
         }
 
+        //return whatever set as target's shortest path
         return endPoints[1].getShortestPath();
     }
 
@@ -246,6 +251,14 @@ public class KelpFusion {
     /**
      * Calculates reachability graph for the given point set
      * takes O(n^2)
+     *
+     * Effective testing parameters
+     *
+     //                144.967, 144.9675, -37.8159, -37.815, 5
+     //                144.967, 144.9679, -37.8159, -37.815, 3
+     //                144.967, 144.968, -37.816, -37.815, 3
+     //                144.9668, 144.9679, -37.8139, -37.813, 3
+     //                144.966, 144.967, -37.814, -37.813, 10
      * @param pointSet
      * @return
      * @throws TransformException
@@ -283,7 +296,6 @@ public class KelpFusion {
 
                 double length = JTS.orthodromicDistance(coordinates[0], coordinates[1], sourceCRS) * 1000;
                 Geometry centerCircle = createCircle(line.getCenterPointCoordinate(), line.getLength());
-//                centerCircle.getEnvelope();
 
                 List intersectingPoints = preparedGeometryIndex.intersects(centerCircle);
                 //This check makes sure G becomes a Gabriel graph
@@ -291,11 +303,6 @@ public class KelpFusion {
                 if (intersectingPoints.size() > 0) {
                     continue;
                 }
-//                144.967, 144.9675, -37.8159, -37.815, 5
-//                144.967, 144.9679, -37.8159, -37.815, 3
-//                144.967, 144.968, -37.816, -37.815, 3
-//                144.9668, 144.9679, -37.8139, -37.813, 3
-//                144.966, 144.967, -37.814, -37.813, 10
 
                 line.setOrthodromicDistance(length);
                 G.add(line);
@@ -312,16 +319,15 @@ public class KelpFusion {
     /**
      * implementing algorithm described in http://s-hull.org/
      *
-     *
      * @param pointSet
      * @return
      * @throws TransformException
      */
     public ArrayList<Line> createDelaunayGraph(ArrayList<TrajectoryPoint> pointSet) throws TransformException {
-//        if (G != null) {
-//            //G already created, so returning G
-//            return G;
-//        }
+        if (G != null) {
+            //G already created, so returning G
+            return G;
+        }
 
 
         lineSet = new HashMap<String, Line>();
@@ -341,32 +347,33 @@ public class KelpFusion {
             }
         }
 
-        //select a x_o point x_0 from x_i
+        //Implementing Sweep Hull
+        //1. select a x_o point randomly from x_i
         TrajectoryPoint x_o = processingPoints.get(0);
         processingPoints.remove(0);
 
-        //sort according to |x_i - x_0|^2
+        //2. sort according to |x_i - x_0|^2
         for (TrajectoryPoint point : processingPoints) {
             double length = JTS.orthodromicDistance(point.getCoordinate(), x_o.getCoordinate(), sourceCRS);
             point.setDistanceToTarget(length);
         }
-        //sort point in the order of distance from x_o
+        //3. sort point in the order of distance from x_o
         Collections.sort(processingPoints);
 
-        //find the point x_j closest to x_0
+        //4. find the point x_j closest to x_0
         TrajectoryPoint x_j = processingPoints.get(0);
         processingPoints.remove(0);
 
-        //find the point x_k that creates the smallest circumCircle with x_0 and x_j and record the center of the circum-circle C
+        //5. find the point x_k that creates the smallest circumCircle with x_0 and x_j and record the center of the circum-circle C
         //TODO implement this correctly
-        //for now Taking the next closest point as x_k
+        //INFO: for now Taking the next closest point as x_k
         TrajectoryPoint x_k = processingPoints.get(0);
         processingPoints.remove(0);
         //instead of center of the circumCircle taking centroid of the triangle
         Coordinate c = new Coordinate((x_o.getX() + x_j.getX() + x_k.getX()) / 3,
                 (x_o.getY() + x_j.getY() + x_k.getY()) / 3);
 
-        //order point x_0, x_j, x_k to give a right handed (clockwise) system this is the initial x_o convex hull
+        //6. order point x_0, x_j, x_k to give a right handed (clockwise) system this is the initial x_o convex hull
         //create line in the order x_0, x_j and check x_k is clockwise or not relative to line
         Line line = new Line(0, x_o, x_j);
         //if x_k is not clockwise swap the locations of x_o and x_j
@@ -375,42 +382,30 @@ public class KelpFusion {
             x_o = x_j;
             x_j = x_temp;
         }
-        //after this x_o, x_j and x_k in that order creates a right handed system
+        //7. after this x_o, x_j and x_k in that order creates a right handed system
         convexHull.add(x_o);
         convexHull.add(x_j);
         convexHull.add(x_k);
 
         //add initial 3 lines to G;
-
         Triangle triangle = new Triangle(0, new TrajectoryPoint[]{x_o, x_j, x_k});
         processTriangle(triangle);
 
-//        lineSet.put(x_o.getTweetID() + "," + x_j.getTweetID(), new Line(1, x_o, x_j));
-//        lineSet.get(x_o.getTweetID() + "," + x_j.getTweetID()).addNeighbour(0);
-//        lineSet.put(x_j.getTweetID() + "," + x_k.getTweetID(), new Line(2, x_j, x_k));
-//        lineSet.get(x_o.getTweetID() + "," + x_j.getTweetID()).addNeighbour(0);
-//        lineSet.put(x_k.getTweetID() + "," + x_o.getTweetID(), new Line(3, x_k, x_o));
-//        lineSet.get(x_o.getTweetID() + "," + x_j.getTweetID()).addNeighbour(0);
-//        DG.add(new Line(1, x_o, x_j));
-//        DG.add(new Line(2, x_j, x_k));
-//        DG.add(new Line(3, x_k, x_o));
-//        triangleList.add(triangle);
-
-        //resort the remaining points according to x_i - C|^2 to give points s_i
+        //8. re-sort the remaining points according to x_i - C|^2 to give points s_i
         for (TrajectoryPoint point : processingPoints) {
             double length = JTS.orthodromicDistance(point.getCoordinate(), c, sourceCRS);
             point.setDistanceToTarget(length);
         }
         Collections.sort(processingPoints);
 
-        // sequentially add the points s_i to the propagating 2D convex hull
+        //9. sequentially add the points s_i to the propagating 2D convex hull
         // that is seeded with the triangle formed from x_0, x_j, x_k
         // as a new point is added the facets of the 2D-hull that are visible to it form new triangles
         //144.9671, 144.9674, -37.8154, -37.8152, 10 test
         //144.96725, 144.9674, -37.8154, -37.8152, 10
         //144.9671, 144.9677, -37.8154, -37.8152, 10
         int id = 3;
-        int resetID = 0;
+        int resetID = 0; // To store the convex hull position to be replaced
         for (TrajectoryPoint point : processingPoints) {
             ArrayList<Integer> postProcessIds = new ArrayList<Integer>();
             for (int i = 0; i < convexHull.size(); i++) {
@@ -427,44 +422,28 @@ public class KelpFusion {
                 boolean isRotationClockwiseWRTBefore = isPointClockwiseFromLine(point, BeforeConvexHullEdge);
                 boolean isRotationClockwiseWRTAfter = isPointClockwiseFromLine(point, afterConvexHullEdge);
 
+                //Following decision block is illustrated at
+                //https://docs.google.com/drawings/d/1XqSEKAfoJ4vw-t7scUb86bauteBli94q5g_1KUMdcNE/edit?usp=sharing
                 if (!isRotationClockwiseWRTBefore && !isRotationClockwiseWRTAfter) {
 
-//                    DG.add(new Line(++id, point, i_point));
                     triangle = new Triangle(triangleList.size(), new TrajectoryPoint[]{point, j_point, i_point});
                     processTriangle(triangle);
 
-                    /*line = new Line(0, triangle[0], triangle[1]);
-                    if (!isPointClockwiseFromLine(triangle[2], line)) {
-                        System.out.println("failed to create a right handed system 111111");
-                        TrajectoryPoint x_temp = triangle[0];
-                        triangle[0] = triangle[1];
-                        triangle[1] = x_temp;
-                    } else
-                        System.out.println("CORRECTLY created a right handed system 111111");*/
-//                    triangleList.add(triangle);
-//                    convexHull.remove(i);
                     postProcessIds.add(i);
                 } else if (isRotationClockwiseWRTBefore && !isRotationClockwiseWRTAfter) {
-//                    DG.add(new Line(++id, i_point, point));
+
                     triangle = new Triangle(triangleList.size(), new TrajectoryPoint[]{point, j_point, i_point});
                     processTriangle(triangle);
-                    /*line = new Line(0, triangle[0], triangle[1]);
-                    if (!isPointClockwiseFromLine(triangle[2], line)) {
-                        System.out.println("failed to create a right handed system 222222");
-                        TrajectoryPoint x_temp = triangle[0];
-                        triangle[0] = triangle[1];
-                        triangle[1] = x_temp;
-                    } else
-                        System.out.println("CORRECTLY created a right handed system 222222");*/
-//                    triangleList.add(triangle);
-//                    convexHull.add(j, point);
+
                     resetID = j;
-                } else if (!isRotationClockwiseWRTBefore && isRotationClockwiseWRTAfter) {
-//                    DG.add(new Line(++id, point, i_point));
                 }
             }
 
+            //processing convex hull changes
+            //Add new point at the location identified by resetID
             convexHull.add(resetID, point);
+
+            //if there are points to be removed from convex hull
             if (!postProcessIds.isEmpty()) {
                 Collections.sort(postProcessIds);
                 int key = -1;
@@ -473,9 +452,11 @@ public class KelpFusion {
                         convexHull.remove(postProcessIds.get(i) + 1);
                     else {
                         //TODO test with 144.975, 144.98, -37.822, -37.815, 3
+                        //Could not use key extracted from postProcessIds as is
+                        //had to assign it to new variable before using
+                        //otherwise convex hull point was not removed
                         key = postProcessIds.get(i);
                         convexHull.remove(key);
-//                        convexHull.remove(postProcessIds.get(i));
                     }
                 }
             }
@@ -486,7 +467,7 @@ public class KelpFusion {
 
         //adjacent pairs of triangles of this triangulation must be 'flipped'
         // in order to create a Delaunay triangulation from the initial non-overlapping triangulation
-        //144.9673, 144.968, -37.8154, -37.815, 10 TE$ST TODO
+        //144.9673, 144.968, -37.8154, -37.815, 10 TE$ST
         //144.967, 144.9675, -37.8154, -37.8152, 10
         //144.96731, 144.9675, -37.8154, -37.8152, 10
         boolean inner_flipped = false, outer_flipped = true;
@@ -520,6 +501,13 @@ public class KelpFusion {
         return DG;
     }
 
+    /**
+     * From the array adjacentNeighbours select the neighbour other than the one provided at pos
+     *
+     * @param adjacentNeighbours
+     * @param pos
+     * @return
+     */
     private int getOtherNeighbour(int[] adjacentNeighbours, int pos) {
         if (adjacentNeighbours[0] == pos) {
             return adjacentNeighbours[1];
@@ -527,6 +515,13 @@ public class KelpFusion {
         return adjacentNeighbours[0];
     }
 
+    /**
+     * Processes a triangle
+     * 1. Create lines to make the triangle
+     * 1.1 add neighbouring triangles to those lines
+     * 2. Add provided triangle to triangle set
+     * @param triangle
+     */
     private void processTriangle(Triangle triangle) {
         for (int i = 0; i < 3; i++) {
             int j = (i == 2) ? 0 : i + 1;
@@ -544,17 +539,35 @@ public class KelpFusion {
         triangleList.add(triangle);
     }
 
+    /**
+     * Select a line from lineSet to represent a line between given to points
+     * Creates a new line between provided points if that line does not exist
+     * @param point1
+     * @param point2
+     * @return
+     */
     private Line getFromLineSet(TrajectoryPoint point1, TrajectoryPoint point2) {
+
+        /* Each line's ID is a combination of tweet ids from points
+         * as the combination can depend on ordering of 2 ids this method checks both combinations */
         if (lineSet.containsKey(point1.getTweetID() + "," + point2.getTweetID())) {
             return lineSet.get(point1.getTweetID() + "," + point2.getTweetID());
         } else if (lineSet.containsKey(point2.getTweetID() + "," + point1.getTweetID())) {
             return lineSet.get(point2.getTweetID() + "," + point1.getTweetID());
-        } else {
+        } else { //if line does not exist for both ID combinations
+            //creates a new line and return
             lineSet.put(point1.getTweetID() + "," + point2.getTweetID(), new Line(1, point1, point2));
             return lineSet.get(point1.getTweetID() + "," + point2.getTweetID());
         }
     }
 
+    /**
+     * Removes the line between given points
+     *
+     * @param point1
+     * @param point2
+     * @return true if line exist and removed, false if line does not exist
+     */
     private boolean removeFromLineSet(TrajectoryPoint point1, TrajectoryPoint point2) {
         if (lineSet.containsKey(point1.getTweetID() + "," + point2.getTweetID())) {
             lineSet.remove(point1.getTweetID() + "," + point2.getTweetID());
@@ -567,36 +580,37 @@ public class KelpFusion {
         }
     }
 
+    /**
+     * Checks and flips given two triangles A and B if they violate Delaunay condition
+     *
+     a ------- b,2
+     |  A   /  |
+     |    /    |
+     |  /   B  |
+     c,3------ d,1
+     * @param triangleA
+     * @param triangleB
+     * @return
+     */
     private boolean checkAndFlip(Triangle triangleA, Triangle triangleB) {
         TrajectoryPoint[] triangle1 = triangleA.getVertices();
         TrajectoryPoint[] triangle2 = triangleB.getVertices();
         System.out.println("Beginning = " +triangleA.getPos() + "," + triangleB.getPos());
-//        System.out.println("triangle" + triangleA.getPos() + " = " +
-//                triangle1[0].getX() + "," + triangle1[0].getY() + " -> " +
-//                triangle1[1].getX() + "," + triangle1[1].getY() + " -> " +
-//                triangle1[2].getX() + "," + triangle1[2].getY());
-//        System.out.println("triangle" + triangleB.getPos() + " = " +
-//                triangle2[0].getX() + "," + triangle2[0].getY() + " -> " +
-//                triangle2[1].getX() + "," + triangle2[1].getY() + " -> " +
-//                triangle2[2].getX() + "," + triangle2[2].getY());
 
         int D_index = -1,
                 A_index = -1,
                 B_index = -1,
                 C_index = -1;
-        for (int i = 0; i < 3; i++) { //this traverses triangle1 clockwise
+        //Following loop locates point D and sets up points for A,B,C from given triangles
+        for (int i = 0; i < 3; i++) { //this traverses triangleA clockwise
             int j = (i == 2) ? 0 : i + 1;
             TrajectoryPoint endpointB = triangle1[i];
             TrajectoryPoint endpointC = triangle1[j];
-//            System.out.println("BC = " + endpointB.getX() + "," + endpointB.getY() + " -> " +
-//                    endpointC.getX() + "," + endpointC.getY());
 
-            for (int k = 2; k >= 0; k--) { //this traverses triangle2 counter clockwise
+            for (int k = 2; k >= 0; k--) { //this traverses triangleB counter clockwise
                 int l = (k == 0) ? 2 : k - 1;
                 TrajectoryPoint endpoint1 = triangle2[k];
                 TrajectoryPoint endpoint2 = triangle2[l];
-//                System.out.println("12 = " + endpoint1.getX() + "," + endpoint1.getY() + " -> " +
-//                        endpoint2.getX() + "," + endpoint2.getY());
 
                 if (endpointB.getCoordinate().equals(endpoint1.getCoordinate()) &&
                         endpointC.getCoordinate().equals(endpoint2.getCoordinate())) {
@@ -613,18 +627,28 @@ public class KelpFusion {
             }
         }
 
+        //If there is a line connecting points A and D there is no point performing determinant test
+        //as those D is not gonna be inside circum circle of ABC
         if (lineSet.containsKey(triangle2[D_index].getTweetID() + "," + triangle1[A_index].getTweetID()) ||
                 lineSet.containsKey(triangle1[A_index].getTweetID() + "," + triangle2[D_index].getTweetID())) {
-            System.out.println("SKIPPING FLIP!!!! before Cline_Renka_test");
+            System.out.println("SKIPPING FLIP!!!! before determinant test");
             return false;
         }
 
-        //if the given triangles fail Cline_Renka_test
-//        if(!isCline_Renka_testPassed(triangle1[0], triangle1[1], triangle1[2], triangle2[D_index])) {
+        //if the given triangles fail determinant test
         if (isDInsideABC(triangle1[0], triangle1[1], triangle1[2], triangle2[D_index])) {
             //flip given two triangles
             //ABC and BDC -> ABD and ADC
+            /*
+            a ------- b,2
+            |  \      |
+            | A  \  B |
+            |      \  |
+            c,3------ d,1
+             */
+            //adding new line
             Line newLine = getFromLineSet(triangle2[D_index], triangle1[A_index]);
+
             if (newLine.getNumOfNeighbours() > 0) { //if new flipping edge has at least one neighbour
                 System.out.println("SKIPPING FLIP!!!!");
                 return false; // These 2 triangles should not be flipped
@@ -636,41 +660,50 @@ public class KelpFusion {
                 System.out.println("CRITICAL : Line distance could not be updated");
             }
 
-
-//            DG.add(new Line(100, triangle1[A_index], triangle2[D_index]));
+            //remove BC line as it is going to be replaced by AD line
             removeFromLineSet(triangle1[C_index], triangle2[B_index]);
 
-            //adding new line
+            //Add neighbours to new AD line
             newLine.addNeighbour(triangleA.getPos());
             newLine.addNeighbour(triangleB.getPos());
 
-            //updating existing 4 lines
+            //updating existing BD and AC lines as their neighbours are changing
             newLine = getFromLineSet(triangle2[B_index], triangle2[D_index]);
             newLine.replaceAdjacentNeighbour(triangleB.getPos(), triangleA.getPos());
 
             newLine = getFromLineSet(triangle1[A_index], triangle1[C_index]);
             newLine.replaceAdjacentNeighbour(triangleA.getPos(), triangleB.getPos());
 
+            //set C <- D and B <- A
             triangle1[C_index] = triangle2[D_index];
             triangle2[B_index] = triangle1[A_index];
 
-            //TODO make sure direct changes in triangle arrays propagated to triangle list
             System.out.println("FLIPPING");
-            System.out.println("triangle1 = " + triangle1[0].getX() + "," + triangle1[0].getY() + " -> " +
-                    triangle1[1].getX() + "," + triangle1[1].getY() + " -> " +
-                    triangle1[2].getX() + "," + triangle1[2].getY());
-            System.out.println("triangle2 = " + triangle2[0].getX() + "," + triangle2[0].getY() + " -> " +
-                    triangle2[1].getX() + "," + triangle2[1].getY() + " -> " +
-                    triangle2[2].getX() + "," + triangle2[2].getY());
-
             return true;
         }
 
         return false;
     }
 
+    /**
+     * Checks if point D is residing inside circum circle of the triangle ABC
+     * Note this ABC are traversed counter clockwise direction
+     * More info - https://en.wikipedia.org/wiki/Delaunay_triangulation#Algorithms
+     A ------- C
+     |      /  |
+     |    /    |
+     |  /      |
+     B ------- D
+     * @param A
+     * @param B
+     * @param C
+     * @param D
+     * @return True if and only if D lies inside the circumCircle ABC
+     */
     private boolean isDInsideABC(TrajectoryPoint A, TrajectoryPoint B, TrajectoryPoint C, TrajectoryPoint D)
     {
+        //Utilizes determinant calculation taken from
+        //https://en.wikipedia.org/wiki/Determinant
         double a = A.getX()-D.getX(),
                 d = B.getX()-D.getX(),
                 g = C.getX()-D.getX(),
@@ -683,66 +716,9 @@ public class KelpFusion {
                 f = (B.getX()*B.getX()-D.getX()*D.getX())+(B.getY()*B.getY()-D.getY()*D.getY()),
                 i = (C.getX()*C.getX()-D.getX()*D.getX())+(C.getY()*C.getY()-D.getY()*D.getY());
 
-//        double d12 = getDeterminant(ByDy, Bx2Dx2By2Dy2, CyDy, Cx2Dx2Cy2Dy2),
-//        d22 = getDeterminant(BxDx, Bx2Dx2By2Dy2, CxDx, Cx2Dx2Cy2Dy2),
-//        d32 = getDeterminant(BxDx, ByDy, CxDx, CyDy);
-
         double result = a*e*i + b*f*g + c*d*h - e*c*g - b*d*i - a*f*h;
         return result > 0;
     }
-
-    private double getDeterminant(double a, double b, double c, double d) {
-        return a*d - b*c;
-    }
-
-    /*
-    This method is taken from the cpp source available in the s-hull web site
-
-
-   minimum angle constraint for circumcircle test.
-   due to Cline & Renka
-
-   A ------- B0-8
-   |      /  |
-   |    /    |
-   |  /      |
-   C ------- D
- */
-    private boolean isCline_Renka_testPassed(TrajectoryPoint A, TrajectoryPoint B, TrajectoryPoint C, TrajectoryPoint D)
-    {
-
-        double v1x = B.getX()-A.getX(),
-                v1y = B.getY()-A.getY(),
-                v2x = C.getX()-A.getX(),
-                v2y = C.getY()-A.getY(),
-                v3x = B.getX()-D.getX(),
-                v3y = B.getY()-D.getY(),
-                v4x = C.getX()-D.getX(),
-                v4y = C.getY()-D.getY();
-
-        double cosA = v1x*v2x + v1y*v2y;
-        double cosD = v3x*v4x + v3y*v4y;
-
-        if( cosA < 0 && cosD < 0 ) // two obtuse angles
-            return false;
-
-//        float ADX = Ax-Dx, ADy = Ay-Dy;
-
-
-        if( cosA > 0 && cosD > 0 )  // two acute angles
-            return true;
-
-
-        double sinA = Math.abs(v1x*v2y - v1y*v2x);
-        double sinD = Math.abs(v3x*v4y - v3y*v4x);
-
-        if( cosA*sinD + sinA*cosD < 0 )
-            return false;
-
-        return true;
-
-    }
-
 
     public Geometry createCircle(Coordinate centerCoordinate, double Diameter) {
         shapeFactory.setNumPoints(32);

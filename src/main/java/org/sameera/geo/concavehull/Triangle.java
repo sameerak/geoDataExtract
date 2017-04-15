@@ -17,14 +17,6 @@ public class Triangle {
         return vertices;
     }
 
-    public int[] getAdjacentNeighbours() {
-        return adjacentNeighbours;
-    }
-
-    public int getNumOfNeighbours() {
-        return numOfNeighbours;
-    }
-
     public void addNeighbour(int neighbourID) {
         adjacentNeighbours[numOfNeighbours] = neighbourID;
         ++numOfNeighbours;
