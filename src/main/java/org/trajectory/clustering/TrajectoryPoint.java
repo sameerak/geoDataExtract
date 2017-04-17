@@ -68,6 +68,10 @@ public class TrajectoryPoint implements Comparable<TrajectoryPoint> {
         connections.add(connection);
     }
 
+    public void removeConnections() {
+        connections = null;
+    }
+
     public ArrayList<Line> getShortestPath() {
         return shortestPath;
     }

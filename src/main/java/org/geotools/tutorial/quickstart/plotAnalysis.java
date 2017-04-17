@@ -1640,7 +1640,7 @@ public class plotAnalysis {
 
                     System.out.println("partition count = " + lineSet.size());
             ArrayList<Line> SPG = kelpFusion.GetShortestPathGraph(pointSet, t);
-            ArrayList<Line> G = kelpFusion.createReachabilityGraph(pointSet);
+            ArrayList<Line> G = kelpFusion.createDelaunayGraph(pointSet);
 
 //            System.out.println("TRACLUST cluster count = " + clusterSet.size());
 //            System.out.println("TCMM cluster count = " + microClusters.size());

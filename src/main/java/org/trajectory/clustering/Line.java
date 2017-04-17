@@ -166,6 +166,11 @@ public class Line implements LineInterface, Comparable<Line> {
         endPoints[1].addConnection(this);
     }
 
+    public void removeConnections() {
+        endPoints[0].removeConnections();
+        endPoints[1].removeConnections();
+    }
+
     public void clearEndPointShortestPaths() {
         endPoints[0].setShortestPath(null);
         endPoints[0].setVisited(false);

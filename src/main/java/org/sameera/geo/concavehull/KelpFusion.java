@@ -36,6 +36,7 @@ public class KelpFusion {
     CoordinateReferenceSystem sourceCRS;
     public HashMap<String, Line> lineSet = new HashMap<String, Line>();
     ArrayList<Triangle> triangleList = new ArrayList<Triangle>();
+    private ArrayList<TrajectoryPoint> pointSet;
 
     public KelpFusion(String area,
                       CoordinateReferenceSystem sourceCRS) {
@@ -55,8 +56,14 @@ public class KelpFusion {
         System.out.println("G calculation FINISHED !!!!!!!!!!!!!! G.size = " + G.size());
 
         //if there is a already created SPG
-        if (SPG != null && previousT == t) {
-            return SPG; //return it
+        if (SPG != null) {
+            if (previousT == t) {
+                return SPG; //return it
+            } else {
+                for (Line gLine: SPG) {
+                    gLine.removeConnections();
+                }
+            }
         }
 
         previousT = t;
@@ -319,7 +326,6 @@ public class KelpFusion {
     /**
      * implementing algorithm described in http://s-hull.org/
      *
-     * @param pointSet
      * @return
      * @throws TransformException
      */
