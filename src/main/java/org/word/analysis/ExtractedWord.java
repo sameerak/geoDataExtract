@@ -1,20 +1,29 @@
 package org.word.analysis;
 
+import java.util.HashSet;
+
 public class ExtractedWord implements Comparable<ExtractedWord> {
     private String term;
-
     private int count = 0;
     private long startTime, endTime;
-    double frequency;
+    private double frequency;
 
-    public ExtractedWord(String term, Long startTime) {
+    public int getUserIDCount() {
+        return userIDs.size();
+    }
+
+    HashSet<Integer> userIDs = new HashSet<Integer>();
+
+    public ExtractedWord(String term, Long startTime, int userID) {
         this.term = term;
         this.startTime = startTime;
+        userIDs.add(userID);
         count = 1;
         frequency = 0;
     }
 
-    public void incrementCounter(Long timestamp) {
+    public void incrementCounter(Long timestamp, int userID) {
+        userIDs.add(userID);
         this.endTime = timestamp;
         ++count;
     }
@@ -29,6 +38,8 @@ public class ExtractedWord implements Comparable<ExtractedWord> {
             //calculate term generated per second
             this.frequency = (count * 1000) / timeDiff;
         }
+
+        frequency *= userIDs.size();
     }
 
     public double getFrequency() {

@@ -73,6 +73,7 @@ public class WordFrequency {
 
             String tweet = basicObject.get("text").toString();
             Long timestamp = basicObject.getLong("timestamp");
+            int userid = basicObject.getInt("userid");
 
             List<String> res = tokenizeStopStem(tweet);
 
@@ -81,9 +82,9 @@ public class WordFrequency {
 
                 if (extractedWordSet.containsKey(token)) {
                     extractedWord = extractedWordSet.get(token);
-                    extractedWord.incrementCounter(timestamp);
+                    extractedWord.incrementCounter(timestamp, userid);
                 } else {
-                    extractedWord = new ExtractedWord(token, timestamp);
+                    extractedWord = new ExtractedWord(token, timestamp, userid);
                     extractedWordSet.put(token, extractedWord);
                 }
             }
@@ -103,9 +104,13 @@ public class WordFrequency {
         int recordCount = 0;
 
         for (ExtractedWord extractedWord : extractedWordList) {
-            //order = term, frequency, count, startTime, endTime
+            if (extractedWord.getUserIDCount() < 2 || extractedWord.getCount() > 700) {
+                continue;
+            }
+            //order = term, frequency, count, startTime, endTime, usercount
             String data = extractedWord.getTerm().replace(',','.') + "," + extractedWord.getFrequency() + ","
-                    + extractedWord.getCount() + "," + extractedWord.getStartTime() + "," + extractedWord.getEndTime();
+                    + extractedWord.getCount() + "," + extractedWord.getStartTime()
+                    + "," + extractedWord.getEndTime()+ "," + extractedWord.getUserIDCount();
             bw.write(data);
             bw.newLine();
             ++recordCount;
