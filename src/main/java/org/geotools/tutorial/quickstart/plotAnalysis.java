@@ -6,6 +6,7 @@ import com.vividsolutions.jts.geom.*;
 import org.anomally.scatterblogs.AnomalyCluster;
 import org.anomally.scatterblogs.extractedTerm;
 import org.anomally.scatterblogs.termCluster;
+import org.apache.lucene.analysis.miscellaneous.PatternAnalyzer;
 import org.geotools.data.DataUtilities;
 import org.geotools.data.FileDataStore;
 import org.geotools.data.FileDataStoreFinder;
@@ -42,6 +43,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.Calendar;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class plotAnalysis {
@@ -1142,7 +1144,9 @@ public class plotAnalysis {
             list.add(18147028); //vicRoads
             list.add(277717138); //NewZealandRoads
 
-            query.put("text", Pattern.compile(word, Pattern.CASE_INSENSITIVE));
+            Pattern pattern = Pattern.compile(word, Pattern.CASE_INSENSITIVE);
+
+            query.put("text", pattern);
             query.put("timestamp", BasicDBObjectBuilder.start("$gte", startDate.getTime()).add("$lte", endDate.getTime()).get());
             query.put("userid",  BasicDBObjectBuilder.start("$not", new BasicDBObject("$in", list)).get());
 
@@ -1195,9 +1199,9 @@ public class plotAnalysis {
                 Point point = geometryFactory.createPoint(coord);
 //                coords[count] = coord;
 
-                featureBuilder = new SimpleFeatureBuilder(TYPE);
-                featureBuilder.add(point);
-                featureBuilder.add(basicObject.getString("text"));
+//                featureBuilder = new SimpleFeatureBuilder(TYPE);
+//                featureBuilder.add(point);
+//                featureBuilder.add(basicObject.getString("text"));
                 int userid = basicObject.getInt("userid");
                 long tweetID = basicObject.getLong("tweet_id");
                 if (!userids.contains(userid)) {
@@ -1233,7 +1237,8 @@ public class plotAnalysis {
 
                         featureBuilder = new SimpleFeatureBuilder(TYPE);
                         featureBuilder.add(point1);
-                        featureBuilder.add(basicObject1.getString("text"));
+                        String tweet = basicObject1.getString("text");
+                        featureBuilder.add(tweet);
                         featureBuilder.add(userid);
                         featureBuilder.add(basicObject1.getString("screen_name"));
                         featureBuilder.add(basicObject1.getString("created_at"));
@@ -1248,7 +1253,8 @@ public class plotAnalysis {
                         int hourOfDay = date.get(Calendar.HOUR_OF_DAY);
 
                         int pos = hourOfDay / 4;
-                        featureBuilder.add((tweetID == tweetID1) ? Color.GREEN :shortColors4Day[pos]);
+                        Matcher matcher = pattern.matcher(tweet);
+                        featureBuilder.add((matcher.find()) ? Color.GREEN :shortColors4Day[pos]);
                         featureBuilder.add(1);
                         featureBuilder.add(10);
 
@@ -1283,10 +1289,10 @@ public class plotAnalysis {
                 } else {
                     continue;
                 }
-                featureBuilder.add(userid);
-                featureBuilder.add(basicObject.getString("screen_name"));
-                featureBuilder.add(basicObject.getString("created_at"));
-                featureBuilder.add(basicObject.getLong("tweet_id"));
+//                featureBuilder.add(userid);
+//                featureBuilder.add(basicObject.getString("screen_name"));
+//                featureBuilder.add(basicObject.getString("created_at"));
+//                featureBuilder.add(basicObject.getLong("tweet_id"));
 
                 previousTimestamp = 0;
 
