@@ -477,6 +477,7 @@ public class KelpFusion {
         //144.967, 144.9675, -37.8154, -37.8152, 10
         //144.96731, 144.9675, -37.8154, -37.8152, 10
         boolean inner_flipped = false, outer_flipped = true;
+        int iterantion = 0;
         while (outer_flipped) {
             outer_flipped = false;
             for (int i = 0; i < triangleList.size(); i++) {
@@ -497,6 +498,8 @@ public class KelpFusion {
                     }
                 }
             }
+            ++iterantion;
+            System.out.println("iteration no = " + iterantion);
         }
 
         ArrayList<Line> DG = new ArrayList<Line>();
@@ -601,7 +604,7 @@ public class KelpFusion {
     private boolean checkAndFlip(Triangle triangleA, Triangle triangleB) {
         TrajectoryPoint[] triangle1 = triangleA.getVertices();
         TrajectoryPoint[] triangle2 = triangleB.getVertices();
-        System.out.println("Beginning = " +triangleA.getPos() + "," + triangleB.getPos());
+//        System.out.println("Beginning = " +triangleA.getPos() + "," + triangleB.getPos());
 
         int D_index = -1,
                 A_index = -1,
@@ -633,11 +636,19 @@ public class KelpFusion {
             }
         }
 
+        Line BC = getFromLineSet(triangle2[B_index], triangle1[C_index]);
+        //Check if BC is previously flipped
+        if (BC.getFlipCount() > 16) {
+            System.out.println(triangleA.getPos() + "," + triangleB.getPos() + " SKIPPING FLIP!!!! " +
+                    "As these triangles are already flipped before");
+            return false;
+        }
+
         //If there is a line connecting points A and D there is no point performing determinant test
         //as those D is not gonna be inside circum circle of ABC
         if (lineSet.containsKey(triangle2[D_index].getTweetID() + "," + triangle1[A_index].getTweetID()) ||
                 lineSet.containsKey(triangle1[A_index].getTweetID() + "," + triangle2[D_index].getTweetID())) {
-            System.out.println("SKIPPING FLIP!!!! before determinant test");
+//            System.out.println(triangleA.getPos() + "," + triangleB.getPos() + "SKIPPING FLIP!!!! before determinant test");
             return false;
         }
 
@@ -656,7 +667,7 @@ public class KelpFusion {
             Line newLine = getFromLineSet(triangle2[D_index], triangle1[A_index]);
 
             if (newLine.getNumOfNeighbours() > 0) { //if new flipping edge has at least one neighbour
-                System.out.println("SKIPPING FLIP!!!!");
+                System.out.println(triangleA.getPos() + "," + triangleB.getPos() + "SKIPPING FLIP!!!!");
                 return false; // These 2 triangles should not be flipped
             }
 
@@ -666,12 +677,20 @@ public class KelpFusion {
                 System.out.println("CRITICAL : Line distance could not be updated");
             }
 
+            System.out.println("removing BC line = " + triangle1[C_index].getTweetID() +
+                    "," + triangle2[B_index].getTweetID());
+            System.out.println("Adding AD line = " + triangle2[D_index].getTweetID() +
+                    "," + triangle1[A_index].getTweetID());
+
             //remove BC line as it is going to be replaced by AD line
             removeFromLineSet(triangle1[C_index], triangle2[B_index]);
 
             //Add neighbours to new AD line
             newLine.addNeighbour(triangleA.getPos());
             newLine.addNeighbour(triangleB.getPos());
+            //setting AD is a flipped line so that next time it won't be flipped again
+            newLine.setFlipCount(BC);
+            int flipCount = newLine.getFlipCount();
 
             //updating existing BD and AC lines as their neighbours are changing
             newLine = getFromLineSet(triangle2[B_index], triangle2[D_index]);
@@ -684,7 +703,7 @@ public class KelpFusion {
             triangle1[C_index] = triangle2[D_index];
             triangle2[B_index] = triangle1[A_index];
 
-            System.out.println("FLIPPING");
+            System.out.println(triangleA.getPos() + "," + triangleB.getPos() + " FLIPPING count = " + flipCount);
             return true;
         }
 
