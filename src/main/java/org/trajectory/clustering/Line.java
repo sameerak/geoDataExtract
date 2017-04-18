@@ -11,6 +11,7 @@ public class Line implements LineInterface, Comparable<Line> {
     private long timeDiff;
     private double length, a, b, c, weight, orthodromicDistance;
     private boolean visited = false;
+    private int flipCount;
     private int clusterID;
     private double theta, directionalTheta; // holds the angle between x axis and line
     private TrajectoryPoint centerPoint;
@@ -47,6 +48,7 @@ public class Line implements LineInterface, Comparable<Line> {
         a = point1.getY() - point2.getY();
         b = point1.getX() - point2.getX();
         c = (point2.getX() - point1.getX()) * point1.getY() + (point2.getY() - point1.getY()) * point1.getX();
+        flipCount = 0;
     }
 
     public TrajectoryPoint[] getEndPoints() {
@@ -217,5 +219,13 @@ public class Line implements LineInterface, Comparable<Line> {
     public void setOrthodromicDistance(CoordinateReferenceSystem sourceCRS) throws TransformException {
         this.orthodromicDistance = JTS.orthodromicDistance(endPoints[0].getCoordinate(),
                 endPoints[1].getCoordinate(), sourceCRS) * 1000;
+    }
+
+    public void setFlipCount(Line previousLine) {
+        this.flipCount = previousLine.getFlipCount() + 1;
+    }
+
+    public int getFlipCount() {
+        return flipCount;
     }
 }
