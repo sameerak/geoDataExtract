@@ -1430,6 +1430,8 @@ public class plotAnalysis {
                 //144.84, 145.07, -37.88, -37.75
                 //150.48, 151.49, -34.13, -33.57
                 //144.95, 144.98, -37.82, -37.81
+                //152.93, 153.72, -28.25, -27.80, 3 - QLD vote
+                //130.08, 161.53, -28.64, -10.33, 3 - QLD
                 //144.975, 144.99, -37.822, -37.81 - MCG
                 //road 144.955, 144.965, -37.82, -37.80
                 //144.65, 144.94, -37.89, -37.74 - Docklands
@@ -1503,7 +1505,9 @@ public class plotAnalysis {
                 timeThreshold = 3600 * 500;
             }
 
-            double eph;
+            Pattern pattern = Pattern.compile(params[1], Pattern.CASE_INSENSITIVE);
+
+            /*double eph;
             try {
                 eph = Double.parseDouble(params[1]);
             } catch (Exception e1) {
@@ -1534,7 +1538,7 @@ public class plotAnalysis {
                 maxIt = Integer.parseInt(params[5]);
             } catch (Exception e1) {
                 maxIt = 1;
-            }
+            }*/
 
 
 
@@ -1610,7 +1614,8 @@ public class plotAnalysis {
 
                 featureBuilder = new SimpleFeatureBuilder(TYPE);
                 featureBuilder.add(point);
-                featureBuilder.add(basicObject.getString("text"));
+                String tweet = basicObject.getString("text");
+                featureBuilder.add(tweet);
                 featureBuilder.add(Color.BLACK);
                 featureBuilder.add(userid);
                 featureBuilder.add(basicObject.getString("screen_name"));
@@ -1624,9 +1629,11 @@ public class plotAnalysis {
                 int hourOfDay = date.get(Calendar.HOUR_OF_DAY);
 
                 int pos = hourOfDay / 4;
-                featureBuilder.add(shortColors4Day[pos]);
+                Matcher matcher = pattern.matcher(tweet);
+                boolean regexMatch = matcher.find();
+                featureBuilder.add(regexMatch ? Color.GREEN : shortColors4Day[pos]);
                 featureBuilder.add(timestamp);
-                featureBuilder.add(5);
+                featureBuilder.add(regexMatch ? 10 : 5);
 
                 SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
                 featureCollection.add(feature);
