@@ -1051,6 +1051,7 @@ public class plotAnalysis {
             Date startDate = startdatePanel.GetDate();
             Date endDate = enddatePanel.GetDate();
             String temp = coordinates.getText();
+            double t = 3;
 
             String[] restictionsString = temp.split(", ");
             int[] restrictions = {Integer.parseInt(restictionsString[0]), Integer.parseInt(restictionsString[1])};
@@ -1059,7 +1060,7 @@ public class plotAnalysis {
 
             clearLayers();
 
-            if (enableAnomaly.isSelected()) {
+            /*if (enableAnomaly.isSelected()) {
                 if (termClusters == null) {
                     termClusters = AnomalyCluster.getAnomalyset(startDate, endDate);
                 }
@@ -1108,7 +1109,7 @@ public class plotAnalysis {
 //                featureBuilder.add(basicObject.getString("created_at"));
 //                featureBuilder.add(basicObject.getLong("tweet_id"));
 
-                        SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
+                        SimpleFeature feature = featureBuilder.buildFeature("" + *//*basicObject.getLong("tweet_id")*//*count);
                         featureCollection.add(feature);
                         count++;
 //                    }
@@ -1128,7 +1129,7 @@ public class plotAnalysis {
                 JOptionPane.showMessageDialog(null, msg, "Geometry results",
                         JOptionPane.INFORMATION_MESSAGE);
                 return;
-            }
+            }*/
 
             //connecting mongoDB on local machine.
             MongoClient mongoClient = new MongoClient("localhost", 27017);
@@ -1149,6 +1150,29 @@ public class plotAnalysis {
             query.put("text", pattern);
             query.put("timestamp", BasicDBObjectBuilder.start("$gte", startDate.getTime()).add("$lte", endDate.getTime()).get());
             query.put("userid",  BasicDBObjectBuilder.start("$not", new BasicDBObject("$in", list)).get());
+
+            if (restictionsString.length >= 6) {
+                double[] coor = {Double.parseDouble(restictionsString[2]), Double.parseDouble(restictionsString[3]),
+                        Double.parseDouble(restictionsString[4]), Double.parseDouble(restictionsString[5])};
+
+                List<BasicDBObject> andArray = new ArrayList<BasicDBObject>();
+                andArray.add(new BasicDBObject("coordinates.0", BasicDBObjectBuilder.start("$gte", coor[0])
+                        .add("$lte", coor[1]).get()));
+                andArray.add(new BasicDBObject("coordinates.1", BasicDBObjectBuilder.start("$gte", coor[2])
+                        .add("$lte", coor[3]).get()));
+                query.put("$and", andArray);
+
+                String area = coor[0] + "," + coor[1] + "," +
+                        coor[2] + "," + coor[3];
+
+                if (kelpFusion == null || !area.equals(kelpFusion.getArea())) {
+                    kelpFusion = new KelpFusion(area, map.getCoordinateReferenceSystem());
+                }
+
+                if (restictionsString.length == 7) {
+                    t = Double.parseDouble(restictionsString[6]);
+                }
+            }
 
             DBCursor dbCursor = collection.find(query).sort(new BasicDBObject("timestamp", 1));
 
@@ -1179,6 +1203,7 @@ public class plotAnalysis {
             String previousDate = "";
             long timeThreshold = 24 * 3600 * 1000;
             int linecount = 0;
+            ArrayList<TrajectoryPoint> pointSet = new ArrayList<TrajectoryPoint>();
 
             int dataLength = dbCursor.count();
             int count = 0;
@@ -1247,6 +1272,9 @@ public class plotAnalysis {
 
                         long timestamp = basicObject1.getLong("timestamp");
 
+                        pointSet.add(new TrajectoryPoint(Double.parseDouble(coordinates1[0]),
+                                Double.parseDouble(coordinates1[1]), tweetID1, timestamp));
+
                         Calendar date = Calendar.getInstance();
                         date.setTime(new Date(timestamp));
                         date.setTimeZone(TimeZone.getTimeZone("Australia/Victoria"));
@@ -1303,13 +1331,66 @@ public class plotAnalysis {
 
             mongoClient.close();
 
+            Style linestyle = createLineStyle(Color.green);
+            trajectorylayer = new FeatureLayer(lineCollection, linestyle);
+            map.addLayer(trajectorylayer);
+
+            if (restictionsString.length >= 6) {
+                ArrayList<Line> SPG = kelpFusion.GetShortestPathGraph(pointSet, t);
+                ArrayList<Line> G = kelpFusion.createDelaunayGraph(pointSet);
+                DefaultFeatureCollection lineCollection1 = new DefaultFeatureCollection(),
+                        lineCollection2 = new DefaultFeatureCollection();
+                clusterLayers = new ArrayList<Layer>();
+
+                //To visualize G edges
+
+                for (int i = 0; i < /*20*/G.size(); i++) {
+                    Line partition = G.get(i);
+
+                    SimpleFeature linefeature = getLineFeatureByCoord(partition.getCoordinates());
+                    lineCollection1.add(linefeature);
+                }
+
+                Style linestyle2 = createLineStyle(Color.red);
+                clusterLayers.add(new FeatureLayer(lineCollection1, linestyle2));
+                if (enableAnomaly.isSelected()) {
+                    map.addLayer(clusterLayers.get(0));
+                }
+
+                //To visualize SPG edges
+                //300000, 1, 150.03, 154.66, -28.85, -26.16, 3
+                //300000, 1, 153.00, 153.03, -27.49, -27.47, 3
+                //300000, 1, 153.016, 153.019, -27.479, -27.475, 3
+                //300000, 1, 151.94, 151.97, -27.5775, -27.5525, 3 easter
+                for (int i = 0; i < /*20*/SPG.size(); i++) {
+                    Line partition = SPG.get(i);
+
+                /*Coordinate coord = new Coordinate(partition.getCenterPoint().getX(), partition.getCenterPoint().getY());
+                Point point = geometryFactory.createPoint(coord);
+                featureBuilder = new SimpleFeatureBuilder(TYPE);
+                featureBuilder.add(point);
+                featureBuilder.add("lineID = " + i);
+                featureBuilder.add(1);
+                featureBuilder.add("length = " + partition.getOrthodromicDistance());
+                featureBuilder.add("created_at");
+                featureBuilder.add("weight = " + partition.getWeight());
+                featureBuilder.add(Color.cyan);*/
+
+//                SimpleFeature feature = featureBuilder.buildFeature("line" + i);
+//                featureCollection.add(feature);
+
+                    SimpleFeature linefeature = getLineFeatureByCoord(partition.getCoordinates());
+                    lineCollection2.add(linefeature);
+                }
+
+                Style linestyle1 = createLineStyle(Color.BLUE);
+                clusterLayers.add(new FeatureLayer(lineCollection2, linestyle1));
+                map.addLayer(clusterLayers.get(1));
+            }
+
             Style style = createPointStyle();
             querylayer = new FeatureLayer(featureCollection, style);
             map.addLayer(querylayer);
-
-            Style linestyle = createLineStyle();
-            trajectorylayer = new FeatureLayer(lineCollection, linestyle);
-            map.addLayer(trajectorylayer);
 
             int numInvalid = 1;
             String msg;
@@ -1322,8 +1403,8 @@ public class plotAnalysis {
                     JOptionPane.INFORMATION_MESSAGE);
         }
 
-        private Style createLineStyle() {
-            Style style = SLD.createLineStyle(Color.GREEN, 0.1F);
+        private Style createLineStyle(Color color) {
+            Style style = SLD.createLineStyle(color, 0.1F);
             return style;
         }
 
