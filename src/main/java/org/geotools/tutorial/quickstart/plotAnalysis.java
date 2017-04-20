@@ -805,7 +805,16 @@ public class plotAnalysis {
             Date endDate = enddatePanel.GetDate();
 
             clearLayers();
-            int useridint = Integer.parseInt(userid.getText());
+            String temp = userid.getText();
+            Pattern pattern = null;
+            int useridint;
+
+            if (temp.contains(", ")) {
+                String[] splits = temp.split(", ");
+                useridint = Integer.parseInt(splits[0]);
+                pattern = Pattern.compile(splits[1], Pattern.CASE_INSENSITIVE);
+            } else
+                useridint = Integer.parseInt(temp);
 
             SimpleFeatureTypeBuilder b = new SimpleFeatureTypeBuilder();
 
@@ -908,7 +917,8 @@ public class plotAnalysis {
 
                     featureBuilder = new SimpleFeatureBuilder(TYPE);
                     featureBuilder.add(point);
-                    featureBuilder.add(basicObject.getString("text"));
+                    String tweet = basicObject.getString("text");
+                    featureBuilder.add(tweet);
                     featureBuilder.add(useridint);
                     String date1 = basicObject.getString("created_at");
                     featureBuilder.add(basicObject.getString("screen_name"));
@@ -923,9 +933,17 @@ public class plotAnalysis {
                     int hourOfDay = date.get(Calendar.HOUR_OF_DAY);
 
                     int pos = hourOfDay / 4;
-                    featureBuilder.add(shortColors4Day[pos]);
+
+                    boolean regexMatch = false;
+
+                    if (pattern != null) {
+                        Matcher matcher = pattern.matcher(tweet);
+                        regexMatch = matcher.find();
+                    }
+
+                    featureBuilder.add(regexMatch ? Color.GREEN : shortColors4Day[pos]);
                     featureBuilder.add(timestamp);
-                    featureBuilder.add(10);
+                    featureBuilder.add(regexMatch ? 10 : 5);
 
                     SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
                     featureCollection.add(feature);
@@ -1281,10 +1299,16 @@ public class plotAnalysis {
                         int hourOfDay = date.get(Calendar.HOUR_OF_DAY);
 
                         int pos = hourOfDay / 4;
-                        Matcher matcher = pattern.matcher(tweet);
-                        featureBuilder.add((matcher.find()) ? Color.GREEN :shortColors4Day[pos]);
+                        boolean regexMatch = false;
+
+                        if (pattern != null) {
+                            Matcher matcher = pattern.matcher(tweet);
+                            regexMatch = matcher.find();
+                        }
+
+                        featureBuilder.add(regexMatch ? Color.GREEN : shortColors4Day[pos]);
                         featureBuilder.add(1);
-                        featureBuilder.add(10);
+                        featureBuilder.add(regexMatch ? 10 : 5);
 
                         SimpleFeature feature = featureBuilder.buildFeature(null);
                         featureCollection.add(feature);
@@ -1577,16 +1601,24 @@ public class plotAnalysis {
             ArrayList<TrajectoryPoint> pointSet = new ArrayList<TrajectoryPoint>();
 
             temp = userid.getText();
-            String[] params = temp.split(", ");
-
+            Pattern pattern = null;
             long timeThreshold;
-            try {
-                timeThreshold = Long.parseLong(params[0]);
-            } catch (Exception e1) {
-                timeThreshold = 3600 * 500;
-            }
 
-            Pattern pattern = Pattern.compile(params[1], Pattern.CASE_INSENSITIVE);
+            if (temp.contains(", ")) {
+                String[] splits = temp.split(", ");
+                try {
+                    timeThreshold = Long.parseLong(splits[0]);
+                } catch (Exception e1) {
+                    timeThreshold = 3600 * 500;
+                }
+                pattern = Pattern.compile(splits[1], Pattern.CASE_INSENSITIVE);
+            } else {
+                try {
+                    timeThreshold = Long.parseLong(temp);
+                } catch (Exception e1) {
+                    timeThreshold = 3600 * 500;
+                }
+            }
 
             /*double eph;
             try {
@@ -1710,8 +1742,13 @@ public class plotAnalysis {
                 int hourOfDay = date.get(Calendar.HOUR_OF_DAY);
 
                 int pos = hourOfDay / 4;
-                Matcher matcher = pattern.matcher(tweet);
-                boolean regexMatch = matcher.find();
+                boolean regexMatch = false;
+
+                if (pattern != null) {
+                    Matcher matcher = pattern.matcher(tweet);
+                    regexMatch = matcher.find();
+                }
+
                 featureBuilder.add(regexMatch ? Color.GREEN : shortColors4Day[pos]);
                 featureBuilder.add(timestamp);
                 featureBuilder.add(regexMatch ? 10 : 5);
