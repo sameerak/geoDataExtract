@@ -116,4 +116,8 @@ public class TrajectoryPoint implements Comparable<TrajectoryPoint> {
     public Coordinate getCoordinate() {
         return new Coordinate(x, y);
     }
+
+    public double getSquared() {
+        return (Math.pow(x, 2) + Math.pow(y, 2));
+    }
 }
