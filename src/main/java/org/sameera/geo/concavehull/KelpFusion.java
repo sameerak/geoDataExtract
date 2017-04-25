@@ -370,14 +370,22 @@ public class KelpFusion {
         TrajectoryPoint x_j = processingPoints.get(0);
         processingPoints.remove(0);
 
-        //5. find the point x_k that creates the smallest circumCircle with x_0 and x_j and record the center of the circum-circle C
-        //TODO implement this correctly
-        //INFO: for now Taking the next closest point as x_k
-        TrajectoryPoint x_k = processingPoints.get(0);
-        processingPoints.remove(0);
-        //instead of center of the circumCircle taking centroid of the triangle
-        Coordinate c = new Coordinate((x_o.getX() + x_j.getX() + x_k.getX()) / 3,
-                (x_o.getY() + x_j.getY() + x_k.getY()) / 3);
+        //5. find the point x_k that creates the smallest circumCircle with x_0 and x_j
+        // and record the center of the circum-circle C
+        int i_x_k = 0;
+        double minCircumRadius = Double.MAX_VALUE;
+        Triangle triangle;
+        for (int i = 0; i < processingPoints.size(); i++) {
+            triangle = new Triangle(0, new TrajectoryPoint[]{x_o, x_j, processingPoints.get(i)});
+            triangle.setEquation();
+            double radius = JTS.orthodromicDistance(triangle.getCircumCenter(), x_o.getCoordinate(), sourceCRS);
+            if (radius < minCircumRadius) {
+                minCircumRadius = radius;
+                i_x_k = i;
+            }
+        }
+        TrajectoryPoint x_k = processingPoints.get(i_x_k);
+        processingPoints.remove(i_x_k);
 
         //6. order point x_0, x_j, x_k to give a right handed (clockwise) system this is the initial x_o convex hull
         //create line in the order x_0, x_j and check x_k is clockwise or not relative to line
@@ -394,10 +402,12 @@ public class KelpFusion {
         convexHull.add(x_k);
 
         //add initial 3 lines to G;
-        Triangle triangle = new Triangle(0, new TrajectoryPoint[]{x_o, x_j, x_k});
+        triangle = new Triangle(0, new TrajectoryPoint[]{x_o, x_j, x_k});
         processTriangle(triangle);
 
         //8. re-sort the remaining points according to x_i - C|^2 to give points s_i
+        triangle.setEquation();
+        Coordinate c = triangle.getCircumCenter();
         for (TrajectoryPoint point : processingPoints) {
             double length = JTS.orthodromicDistance(point.getCoordinate(), c, sourceCRS);
             point.setDistanceToTarget(length);
