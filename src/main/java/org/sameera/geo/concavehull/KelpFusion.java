@@ -636,6 +636,12 @@ public class KelpFusion {
             }
         }
 
+        if (D_index == -1) {
+            System.out.println(triangleA.getPos() + "," + triangleB.getPos() + " SKIPPING FLIP!!!! " +
+                    "UNEXPECTED ERROR OCCURED");
+            return false;
+        }
+
         Line BC = getFromLineSet(triangle2[B_index], triangle1[C_index]);
         //Check if BC is previously flipped
         if (BC.getFlipCount() > 16) {
@@ -653,7 +659,7 @@ public class KelpFusion {
         }
 
         //if the given triangles fail determinant test
-        if (isDInsideABC(triangle1[0], triangle1[1], triangle1[2], triangle2[D_index])) {
+        if (isDInsideABC(triangle1[0], triangle1[2], triangle1[1], triangle2[D_index])) {
             //flip given two triangles
             //ABC and BDC -> ABD and ADC
             /*
