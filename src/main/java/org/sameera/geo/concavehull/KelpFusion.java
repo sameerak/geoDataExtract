@@ -378,9 +378,8 @@ public class KelpFusion {
         for (int i = 0; i < processingPoints.size(); i++) {
             triangle = new Triangle(0, new TrajectoryPoint[]{x_o, x_j, processingPoints.get(i)});
             triangle.setEquation();
-            double radius = JTS.orthodromicDistance(triangle.getCircumCenter(), x_o.getCoordinate(), sourceCRS);
-            if (radius < minCircumRadius) {
-                minCircumRadius = radius;
+            if (triangle.getCircumRadius() < minCircumRadius) {
+                minCircumRadius = triangle.getCircumRadius();
                 i_x_k = i;
             }
         }
