@@ -6,7 +6,7 @@ import org.trajectory.clustering.TrajectoryPoint;
 public class Triangle {
     private TrajectoryPoint[] vertices;//these should form a clockwise rotation
     private TrajectoryPoint circumcenter;
-    private double circumradius;
+    private double circumradius = Double.MAX_VALUE;
     private int[] adjacentNeighbours = new int[3];
     private int numOfNeighbours = 0;
     private int pos = -1;
@@ -63,7 +63,13 @@ public class Triangle {
                 {vertices[2].getX(), vertices[2].getY(), C2}});
 
         circumcenter = new TrajectoryPoint(Sx / a, Sy / a, 0 ,0);
-        circumradius = (Math.sqrt((b/a) + ((Math.pow(Sx, 2) + Math.pow(Sy, 2))/Math.pow(a, 2))));
+        Coordinate center = circumcenter.getCoordinate();
+        double dist0 = center.distance(vertices[0].getCoordinate()),
+                dist1 = center.distance(vertices[1].getCoordinate()),
+                dist2 = center.distance(vertices[2].getCoordinate());
+        if (dist0 == dist1 && dist0 == dist2 && dist1 == dist2) {
+            circumradius = (Math.sqrt((b / a) + ((Math.pow(Sx, 2) + Math.pow(Sy, 2)) / Math.pow(a, 2))));
+        }
     }
 
     public static double getDeterminant3By3(double[][] matrix) {
