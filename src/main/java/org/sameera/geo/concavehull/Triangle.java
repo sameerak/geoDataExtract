@@ -105,8 +105,6 @@ public class Triangle {
                 xaxc = vertices[0].getX() - vertices[2].getX();
 
         double sx, sy;
-
-
         sx = 0.5 * (((C2 - A2) * yayb - (B2 - A2) * yayc) / (xaxb * yayc - xaxc * yayb));
         sy = 0.5 * (((C2 - A2) * xaxb - (B2 - A2) * xaxc) / (xaxc * yayb - xaxb * yayc));
 
@@ -174,8 +172,8 @@ public class Triangle {
         double dist0 = center.distance(vertices[0].getCoordinate()),
                 dist1 = center.distance(vertices[1].getCoordinate()),
                 dist2 = center.distance(vertices[2].getCoordinate());
-        if (dist0 == dist1 && dist0 == dist2 && dist1 == dist2) {
+//        if (dist0 == dist1 && dist0 == dist2 && dist1 == dist2) {
             circumradius = dist0;
-        }
+//        }
     }
 }

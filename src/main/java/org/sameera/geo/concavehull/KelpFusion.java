@@ -35,7 +35,7 @@ public class KelpFusion {
     private double previousT;
     CoordinateReferenceSystem sourceCRS;
     public HashMap<String, Line> lineSet = new HashMap<String, Line>();
-    ArrayList<Triangle> triangleList = new ArrayList<Triangle>();
+    public ArrayList<Triangle> triangleList = new ArrayList<Triangle>();
     private ArrayList<TrajectoryPoint> pointSet;
 
     public KelpFusion(String area,
@@ -377,9 +377,10 @@ public class KelpFusion {
         Triangle triangle;
         for (int i = 0; i < processingPoints.size(); i++) {
             triangle = new Triangle(0, new TrajectoryPoint[]{x_o, x_j, processingPoints.get(i)});
-            triangle.setEquation();
-            if (triangle.getCircumRadius() < minCircumRadius) {
-                minCircumRadius = triangle.getCircumRadius();
+            triangle.setEquationPerpendicularLines();
+            double radius = JTS.orthodromicDistance(triangle.getCircumCenter(), x_o.getCoordinate(), sourceCRS);
+            if (radius < minCircumRadius) {
+                minCircumRadius = radius;
                 i_x_k = i;
             }
         }
@@ -405,7 +406,7 @@ public class KelpFusion {
         processTriangle(triangle);
 
         //8. re-sort the remaining points according to x_i - C|^2 to give points s_i
-        triangle.setEquation();
+        triangle.setEquationPerpendicularLines();
         Coordinate c = triangle.getCircumCenter();
         for (TrajectoryPoint point : processingPoints) {
             double length = JTS.orthodromicDistance(point.getCoordinate(), c, sourceCRS);
@@ -740,7 +741,7 @@ public class KelpFusion {
      * @param D
      * @return True if and only if D lies inside the circumCircle ABC
      */
-    private boolean isDInsideABC(TrajectoryPoint A, TrajectoryPoint B, TrajectoryPoint C, TrajectoryPoint D)
+    public static boolean isDInsideABC(TrajectoryPoint A, TrajectoryPoint B, TrajectoryPoint C, TrajectoryPoint D)
     {
         //Utilizes determinant calculation taken from
         //https://en.wikipedia.org/wiki/Determinant
