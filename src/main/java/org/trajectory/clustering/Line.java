@@ -9,7 +9,7 @@ public class Line implements LineInterface, Comparable<Line> {
     private final int ID;
     private TrajectoryPoint[] endPoints = new TrajectoryPoint[2];
     private long timeDiff;
-    private double length, a, b, c, weight, orthodromicDistance;
+    private double length, a, b, c, c1, weight, orthodromicDistance;
     private boolean visited = false;
     private int flipCount;
     private int clusterID;
@@ -45,9 +45,17 @@ public class Line implements LineInterface, Comparable<Line> {
         //calculate time diff
         timeDiff = Math.abs(point1.getTimestamp() - point2.getTimestamp());
 
+        //line equation
+        //ax + by + c = 0
         a = point1.getY() - point2.getY();
-        b = point1.getX() - point2.getX();
-        c = (point2.getX() - point1.getX()) * point1.getY() + (point2.getY() - point1.getY()) * point1.getX();
+        b = point2.getX() - point1.getX();
+        c = -b * point1.getY() + -a * point1.getX();
+
+        double x = (endPoints[0].getX() + endPoints[1].getX()) / 2,
+                y = (endPoints[0].getY() + endPoints[1].getY()) / 2;
+        c1 = a * y - b * x;
+        //perpendicular equation
+        //bx - ay + c1 = 0
         flipCount = 0;
     }
 
@@ -79,6 +87,10 @@ public class Line implements LineInterface, Comparable<Line> {
 
     public double getC() {
         return c;
+    }
+
+    public double getCPerpendicular() {
+        return c1;
     }
 
     public void setVisited() {
