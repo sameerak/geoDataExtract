@@ -8,6 +8,9 @@ import org.trajectory.clustering.Line;
 import org.trajectory.clustering.TCMM;
 import org.trajectory.clustering.TrajectoryPoint;
 
+import java.math.BigDecimal;
+import java.math.MathContext;
+
 public class TriangleTest
         extends TestCase {
 
@@ -37,7 +40,7 @@ public class TriangleTest
         TrajectoryPoint i = new TrajectoryPoint(1,-1, 0,0);
         TrajectoryPoint j = new TrajectoryPoint(2,-2, 0,0);
         Triangle triangle = new Triangle(0, new TrajectoryPoint[]{i, j, h});
-        triangle.setEquation();
+        triangle.setEquationPerpendicularLines();
 
         assertTrue(true);
     }
@@ -47,7 +50,17 @@ public class TriangleTest
         TrajectoryPoint i = new TrajectoryPoint(0,0, 0,0);
         TrajectoryPoint j = new TrajectoryPoint(0,2, 0,0);
         Triangle triangle = new Triangle(0, new TrajectoryPoint[]{i, j, h});
-        triangle.setEquation();
+        triangle.setEquationPerpendicularLines();
+
+        assertTrue(true);
+    }
+
+    public void testRealTriangle() {
+        TrajectoryPoint h = new TrajectoryPoint(151.9730393, -27.57645253, 0,0);
+        TrajectoryPoint i = new TrajectoryPoint(151.97303887, -27.57645187, 0,0);
+        TrajectoryPoint j = new TrajectoryPoint(151.97303852, -27.57645209, 0,0);
+        Triangle triangle = new Triangle(0, new TrajectoryPoint[]{i, j, h});
+        triangle.setEquationPerpendicularLines();
 
         assertTrue(true);
     }

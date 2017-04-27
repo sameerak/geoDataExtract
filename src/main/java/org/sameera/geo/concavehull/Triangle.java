@@ -1,7 +1,11 @@
 package org.sameera.geo.concavehull;
 
 import com.vividsolutions.jts.geom.Coordinate;
+import org.trajectory.clustering.Line;
 import org.trajectory.clustering.TrajectoryPoint;
+
+import java.math.BigDecimal;
+import java.math.MathContext;
 
 public class Triangle {
     private TrajectoryPoint[] vertices;//these should form a clockwise rotation
@@ -88,5 +92,90 @@ public class Triangle {
                 i = matrix[2][2];
 
         return a*e*i + b*f*g + c*d*h - e*c*g - b*d*i - a*f*h;
+    }
+
+    public void setEquationSK() {
+        double A2 = vertices[0].getSquared(),
+                B2 = vertices[1].getSquared(),
+                C2 = vertices[2].getSquared();
+
+        double yayb = vertices[0].getY() - vertices[1].getY(),
+                yayc = vertices[0].getY() - vertices[2].getY(),
+                xaxb = vertices[0].getX() - vertices[1].getX(),
+                xaxc = vertices[0].getX() - vertices[2].getX();
+
+        double sx, sy;
+
+
+        sx = 0.5 * (((C2 - A2) * yayb - (B2 - A2) * yayc) / (xaxb * yayc - xaxc * yayb));
+        sy = 0.5 * (((C2 - A2) * xaxb - (B2 - A2) * xaxc) / (xaxc * yayb - xaxb * yayc));
+
+        circumcenter = new TrajectoryPoint(sx, sy, 0 ,0);
+        Coordinate center = circumcenter.getCoordinate();
+        double dist0 = center.distance(vertices[0].getCoordinate()),
+                dist1 = center.distance(vertices[1].getCoordinate()),
+                dist2 = center.distance(vertices[2].getCoordinate());
+//        if (dist0 == dist1 && dist0 == dist2 && dist1 == dist2) {
+//            circumradius = dist0;
+//            return;
+//        }
+
+        MathContext mc2 = MathContext.DECIMAL128,
+        mc = MathContext.UNLIMITED;
+//                new MathContext(0);
+        BigDecimal bdA2 = new BigDecimal(A2, mc),
+                bdB2 = new BigDecimal(B2, mc),
+                bdC2 = new BigDecimal(C2, mc),
+                bdyayb = new BigDecimal(String.valueOf(new BigDecimal(vertices[0].getY(), mc).subtract(new BigDecimal(vertices[1].getY(), mc), mc)), mc),
+                bdyayc = new BigDecimal(String.valueOf(new BigDecimal(vertices[0].getY(), mc).subtract(new BigDecimal(vertices[2].getY(), mc), mc)), mc),
+                bdxaxb = new BigDecimal(String.valueOf(new BigDecimal(vertices[0].getX(), mc).subtract(new BigDecimal(vertices[1].getX(), mc), mc)), mc),
+                bdxaxc = new BigDecimal(String.valueOf(new BigDecimal(vertices[0].getX(), mc).subtract(new BigDecimal(vertices[2].getX(), mc), mc)), mc),
+                bdHalf = new BigDecimal(0.5, mc);
+
+        BigDecimal bdSx, bdSy;
+        BigDecimal sxUnder = bdxaxb.multiply(bdyayc, mc).subtract(bdxaxc.multiply(bdyayb, mc), mc),
+        sxOver = ((bdC2.subtract(bdA2, mc)).multiply(bdyayb, mc))
+                .subtract(bdB2.subtract(bdA2, mc).multiply(bdyayc, mc));
+
+        bdSx = bdHalf.multiply((sxOver.divide(sxUnder, mc2)));
+
+        BigDecimal syUnder = bdxaxc.multiply(bdyayb, mc).subtract(bdxaxb.multiply(bdyayc, mc), mc),
+                syOver = ((bdC2.subtract(bdA2, mc)).multiply(bdxaxb, mc))
+                        .subtract(bdB2.subtract(bdA2, mc).multiply(bdxaxc, mc));
+
+        bdSy = bdHalf.multiply((syOver.divide(syUnder, mc2)));
+
+        TrajectoryPoint circumcenter1 = new TrajectoryPoint(bdSx.doubleValue(), bdSy.doubleValue(), 0 ,0);
+    }
+
+    public void setEquationPerpendicularLines() {
+        Line line1, line2;
+        line1 = new Line(1, vertices[0], vertices[1]);
+        line2 = new Line(2, vertices[1], vertices[2]);
+
+        double a1, b1, c1, a2, b2, c2;
+
+        a1 = line1.getB();
+        b1 = line1.getA() * -1;
+        c1 = line1.getCPerpendicular();
+        a2 = line2.getB();
+        b2 = line2.getA() * -1;
+        c2 = line2.getCPerpendicular();
+
+        double a2b1MINa1b2 = a2 * b1 - a1 * b2;
+
+        double sx, sy;
+
+        sx = (b2 * c1 - b1 * c2) / a2b1MINa1b2;
+        sy = (a1 * c2 - a2 * c1) / a2b1MINa1b2;
+
+        circumcenter = new TrajectoryPoint(sx, sy, 0 ,0);
+        Coordinate center = circumcenter.getCoordinate();
+        double dist0 = center.distance(vertices[0].getCoordinate()),
+                dist1 = center.distance(vertices[1].getCoordinate()),
+                dist2 = center.distance(vertices[2].getCoordinate());
+        if (dist0 == dist1 && dist0 == dist2 && dist1 == dist2) {
+            circumradius = dist0;
+        }
     }
 }
