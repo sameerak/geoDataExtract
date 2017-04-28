@@ -677,6 +677,13 @@ public class KelpFusion {
         if (isDInsideABC(triangleA, triangle2[D_index])) {
             //flip given two triangles
             //ABC and BDC -> ABD and ADC
+            //edge changes
+            //AB ^ BC ^ CA and BD ^ DC ^ CB -> AB ^ BD ^ DA and AD ^ DC ^ CA
+            //note that from triangle A and B, edges AB and DC respectively does not change
+            //we use this as reference point to decide which edges to replace
+            //edge CA from triangle A moves to triangle B after edge DC and
+            //edge BD from triangle B moves to triangle A after edge AB
+            //positions held by edges CA and BD in triangles A and B respectively are replaced by new edge AD
             /*
             a ------- b,2
             |  \      |
