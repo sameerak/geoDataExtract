@@ -9,6 +9,7 @@ import java.math.MathContext;
 
 public class Triangle {
     private TrajectoryPoint[] vertices;//these should form a clockwise rotation
+    private Line[] edges; //contains 3 edges in order 0-1,1-2,2-0
     private TrajectoryPoint circumcenter;
     private double circumradius = Double.MAX_VALUE;
     private int[] adjacentNeighbours = new int[3];
@@ -39,6 +40,14 @@ public class Triangle {
 
     public double getCircumRadius() {
         return circumradius;
+    }
+
+    public Line[] getEdges() {
+        return edges;
+    }
+
+    public void setEdges(Line[] edges) {
+        this.edges = edges;
     }
 
     public void setEquation() {
@@ -148,8 +157,13 @@ public class Triangle {
 
     public void setEquationPerpendicularLines() {
         Line line1, line2;
-        line1 = new Line(1, vertices[0], vertices[1]);
-        line2 = new Line(2, vertices[1], vertices[2]);
+        if (edges == null) {
+            line1 = new Line(1, vertices[0], vertices[1]);
+            line2 = new Line(2, vertices[1], vertices[2]);
+        } else {
+            line1 = edges[0];
+            line2 = edges[1];
+        }
 
         double a1, b1, c1, a2, b2, c2;
 
@@ -173,7 +187,16 @@ public class Triangle {
                 dist1 = center.distance(vertices[1].getCoordinate()),
                 dist2 = center.distance(vertices[2].getCoordinate());
 //        if (dist0 == dist1 && dist0 == dist2 && dist1 == dist2) {
-            circumradius = dist0;
+            circumradius = Math.max(dist2, Math.max(dist0, dist1));
 //        }
+    }
+
+    @Override
+    public String toString() {
+        String out = "pos = " + pos + ", " + vertices[0] + " -> " + vertices[1] + " -> " + vertices[2];
+        if (edges != null) {
+            out += "\n" + edges[0] + " ^ " + edges[1] + " ^ " + edges[2];
+        }
+        return out;
     }
 }
