@@ -240,4 +240,9 @@ public class Line implements LineInterface, Comparable<Line> {
     public int getFlipCount() {
         return flipCount;
     }
+
+    @Override
+    public String toString() {
+        return endPoints[0] + "->" + endPoints[1];
+    }
 }

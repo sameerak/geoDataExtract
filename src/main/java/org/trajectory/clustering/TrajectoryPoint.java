@@ -120,4 +120,9 @@ public class TrajectoryPoint implements Comparable<TrajectoryPoint> {
     public double getSquared() {
         return (Math.pow(x, 2) + Math.pow(y, 2));
     }
+
+    @Override
+    public String toString() {
+        return x + "," + y;
+    }
 }
