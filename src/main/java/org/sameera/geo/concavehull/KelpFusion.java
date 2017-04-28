@@ -542,6 +542,7 @@ public class KelpFusion {
      * @param triangle
      */
     private void processTriangle(Triangle triangle) {
+        Line[] edges = new Line[3];
         for (int i = 0; i < 3; i++) {
             int j = (i == 2) ? 0 : i + 1;
             Line line = getFromLineSet(triangle.getVertices()[i], triangle.getVertices()[j]);
@@ -554,7 +555,9 @@ public class KelpFusion {
                 triangle.addNeighbour(line.getAdjacentNeighbours()[0]);
             }
             line.addNeighbour(triangleList.size());
+            edges[i] = line;
         }
+        triangle.setEdges(edges);
         triangleList.add(triangle);
     }
 
@@ -615,6 +618,8 @@ public class KelpFusion {
         TrajectoryPoint[] triangle1 = triangleA.getVertices();
         TrajectoryPoint[] triangle2 = triangleB.getVertices();
 //        System.out.println("Beginning = " +triangleA.getPos() + "," + triangleB.getPos());
+//        System.out.println("triangleA = " + triangleA);
+//        System.out.println("triangleB = " + triangleB);
 
         int D_index = -1,
                 A_index = -1,
@@ -669,7 +674,7 @@ public class KelpFusion {
         }
 
         //if the given triangles fail determinant test
-        if (isDInsideABC(triangle1[0], triangle1[2], triangle1[1], triangle2[D_index])) {
+        if (isDInsideABC(triangleA, triangle2[D_index])) {
             //flip given two triangles
             //ABC and BDC -> ABD and ADC
             /*
@@ -686,6 +691,9 @@ public class KelpFusion {
                 System.out.println(triangleA.getPos() + "," + triangleB.getPos() + "SKIPPING FLIP!!!!");
                 return false; // These 2 triangles should not be flipped
             }
+
+            Line[] Triangle1Edges = triangleA.getEdges(),
+                    Triangle2Edges = triangleB.getEdges();
 
             try {
                 newLine.setOrthodromicDistance(sourceCRS);
@@ -708,18 +716,38 @@ public class KelpFusion {
             newLine.setFlipCount(BC);
             int flipCount = newLine.getFlipCount();
 
+            Line tempLine;
             //updating existing BD and AC lines as their neighbours are changing
-            newLine = getFromLineSet(triangle2[B_index], triangle2[D_index]);
-            newLine.replaceAdjacentNeighbour(triangleB.getPos(), triangleA.getPos());
+            tempLine = getFromLineSet(triangle2[B_index], triangle2[D_index]);
+            tempLine.replaceAdjacentNeighbour(triangleB.getPos(), triangleA.getPos());
 
-            newLine = getFromLineSet(triangle1[A_index], triangle1[C_index]);
-            newLine.replaceAdjacentNeighbour(triangleA.getPos(), triangleB.getPos());
+            tempLine = getFromLineSet(triangle1[A_index], triangle1[C_index]);
+            tempLine.replaceAdjacentNeighbour(triangleA.getPos(), triangleB.getPos());
 
             //set C <- D and B <- A
             triangle1[C_index] = triangle2[D_index];
+            Triangle1Edges[(A_index == 2) ? 0 : A_index + 1] = Triangle2Edges[B_index];
             triangle2[B_index] = triangle1[A_index];
+            Triangle2Edges[(D_index == 2) ? 0 : D_index + 1] = Triangle1Edges[C_index];
+
+            Triangle2Edges[B_index] = newLine;
+            Triangle1Edges[C_index] = newLine;
 
             System.out.println(triangleA.getPos() + "," + triangleB.getPos() + " FLIPPING count = " + flipCount);
+//            System.out.println("triangleA = " + triangleA);
+//            System.out.println("triangleB = " + triangleB);
+            return true;
+        }
+
+        return false;
+    }
+
+    public static boolean isDInsideABC(Triangle abc, TrajectoryPoint d) {
+        abc.setEquationPerpendicularLines();
+
+        double D_length = d.getCoordinate().distance(abc.getCircumCenter());
+
+        if (D_length < abc.getCircumRadius()) {
             return true;
         }
 
