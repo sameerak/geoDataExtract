@@ -100,7 +100,7 @@ public class KelpFusion {
      * @param spg
      * @return shortest path calculated with lines contained in spg
      */
-    private ArrayList<Line> getShortestPath(Line gLine, ArrayList<Line> spg) {
+    private ArrayList<Line> getShortestPath(Line gLine, ArrayList<Line> spg) throws TransformException {
         TrajectoryPoint[] endPoints = gLine.getEndPoints();
 
         if (endPoints[0].getConnections() == null || endPoints[1].getConnections() == null) {
@@ -113,12 +113,16 @@ public class KelpFusion {
         }
 
         ArrayList<TrajectoryPoint> pointQueue = new ArrayList<TrajectoryPoint>();
+        HashSet<Long> points_to_visit = new HashSet<Long>();
+
+        endPoints[0].setDistanceToTarget(gLine.getOrthodromicDistance());
         endPoints[0].setShortestPath(new ArrayList<Line>());
         pointQueue.add(endPoints[0]);
-        HashSet<Long> points_to_visit = new HashSet<Long>();
         points_to_visit.add(endPoints[0].getTweetID());
 
         while (!pointQueue.isEmpty()) {
+            Collections.sort(pointQueue);
+
             TrajectoryPoint point = pointQueue.get(0);
             pointQueue.remove(0);
             point.setVisited(true);
@@ -147,16 +151,20 @@ public class KelpFusion {
                     otherEndPoint.setShortestPath(tmpShortestPath);
                 }
 
+                //if process meets target before processing all points
                 if (otherEndPoint.getTweetID() == endPoints[1].getTweetID()){
                     return tmpShortestPath;
                 }
+
                 if (!otherEndPoint.isVisited() && !points_to_visit.contains(otherEndPoint.getTweetID())) {
+                    otherEndPoint.setDistanceToTarget(tmpPathWeight);
                     points_to_visit.add(otherEndPoint.getTweetID());
                     pointQueue.add(otherEndPoint);
                 }
             }
         }
 
+        //return whatever set as target's shortest path
         return endPoints[1].getShortestPath();
     }
 
