@@ -237,6 +237,18 @@ public class TRACLUST {
         return partitionedLines;
     }
 
+    public static ArrayList<Line> getLines(int ID, ArrayList<TrajectoryPoint> userPoints) {
+        int lineID = ID;
+        ArrayList<Line> Lines = new ArrayList<Line>();
+
+        for (int i = 0; i < userPoints.size() - 1; i++) {
+            Lines.add(new Line(lineID, userPoints.get(i), userPoints.get(i + 1)));
+            ++lineID;
+        }
+
+        return Lines;
+    }
+
     public static class MDLComparator {
         Line shorter, longer;
         TrajectoryPoint[] longerEndpoints, shorterEndpoints;
