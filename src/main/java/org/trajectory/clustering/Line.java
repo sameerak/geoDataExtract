@@ -12,6 +12,7 @@ public class Line implements LineInterface, Comparable<Line> {
     private double length, a, b, c, c1, weight, orthodromicDistance;
     private boolean visited = false;
     private int flipCount;
+    private int usageCount = 0;
     private int clusterID;
     private double theta, directionalTheta; // holds the angle between x axis and line
     private TrajectoryPoint centerPoint;
@@ -244,5 +245,17 @@ public class Line implements LineInterface, Comparable<Line> {
     @Override
     public String toString() {
         return endPoints[0] + "->" + endPoints[1];
+    }
+
+    public void incrementUsageCount() {
+        ++this.usageCount;
+    }
+
+    public void resetUsageCount() {
+        this.usageCount = 0;
+    }
+
+    public int getUsageCount() {
+        return usageCount;
     }
 }
