@@ -78,7 +78,7 @@ public class KelpFusion {
 //            double length = JTS.orthodromicDistance(endpoints[0], endpoints[1], sourceCRS) * 1000;
 //            double length = gLine.getLength(); //with this value all the lengths become less than 1
             double length = gLine.getOrthodromicDistance();
-            if (shortestPathFromSPG == null || getPathWeight(shortestPathFromSPG) >= Math.pow(length, t)) {
+            if (shortestPathFromSPG == null || getPathWeight(shortestPathFromSPG, true) >= Math.pow(length, t)) {
                 gLine.setWeight(Math.pow(length, t));
                 gLine.addConnection();
                 SPG.add(gLine);
@@ -142,8 +142,8 @@ public class KelpFusion {
 
                 //for that other point add this line to its shortest path
                 double existingPathWeight = (otherEndPoint.getShortestPath() == null) ?
-                        Double.MAX_VALUE : getPathWeight(otherEndPoint.getShortestPath()),
-                        tmpPathWeight = getPathWeight(tmpShortestPath);
+                        Double.MAX_VALUE : getPathWeight(otherEndPoint.getShortestPath(), false),
+                        tmpPathWeight = getPathWeight(tmpShortestPath, false);
                 if (existingPathWeight > tmpPathWeight) {
                     otherEndPoint.setShortestPath(tmpShortestPath);
                 }
@@ -218,8 +218,8 @@ public class KelpFusion {
 
                 //for that other point add this line to its shortest path
                 double existingPathWeight = (otherEndPoint.getShortestPath() == null) ?
-                        Double.MAX_VALUE : getPathWeight(otherEndPoint.getShortestPath()),
-                        tmpPathWeight = getPathWeight(tmpShortestPath);
+                        Double.MAX_VALUE : getPathWeight(otherEndPoint.getShortestPath(), true),
+                        tmpPathWeight = getPathWeight(tmpShortestPath, true);
                 if (existingPathWeight > tmpPathWeight) {
                     otherEndPoint.setShortestPath(tmpShortestPath);
                 }
@@ -248,7 +248,7 @@ public class KelpFusion {
         return endPoints[1].getShortestPath();
     }
 
-    private double getPathWeight(ArrayList<Line> shortestPathFromSPG) {
+    private double getPathWeight(ArrayList<Line> shortestPathFromSPG, boolean useWeights) {
         //if shortest path does not exist
         if (shortestPathFromSPG == null) {
             return Double.MAX_VALUE;
@@ -256,8 +256,14 @@ public class KelpFusion {
 
         double cumulativeWeight = 0;
 
-        for (Line line: shortestPathFromSPG) {
-            cumulativeWeight += line.getWeight();
+        if (useWeights) {
+            for (Line line : shortestPathFromSPG) {
+                cumulativeWeight += line.getWeight();
+            }
+        } else {
+            for (Line line : shortestPathFromSPG) {
+                cumulativeWeight += line.getOrthodromicDistance();
+            }
         }
 
         return cumulativeWeight;
