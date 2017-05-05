@@ -37,6 +37,7 @@ public class KelpFusion {
     public HashMap<String, Line> lineSet = new HashMap<String, Line>();
     public ArrayList<Triangle> triangleList = new ArrayList<Triangle>();
     private ArrayList<TrajectoryPoint> pointSet;
+    HashMap<Coordinate, TrajectoryPoint> selectedLocations;
 
     public KelpFusion(String area,
                       CoordinateReferenceSystem sourceCRS) {
@@ -356,14 +357,14 @@ public class KelpFusion {
         //TODO if there a only 3 points or less return resulting 3 or less lines
 
         //following section is to make sure to avoid multiple points with the same coordinates
-        HashSet<Coordinate> selectedLocationIds = new HashSet<Coordinate>();
+        selectedLocations = new HashMap<Coordinate, TrajectoryPoint>();
         ArrayList<TrajectoryPoint> processingPoints = new ArrayList<TrajectoryPoint>();
         ArrayList<TrajectoryPoint> convexHull = new ArrayList<TrajectoryPoint>();
 
         for (TrajectoryPoint point : pointSet) {
-            if (!selectedLocationIds.contains(point.getCoordinate())) {
+            if (!selectedLocations.containsKey(point.getCoordinate())) {
                 processingPoints.add(point);
-                selectedLocationIds.add(point.getCoordinate());
+                selectedLocations.put(point.getCoordinate(), point);
             }
         }
 
@@ -820,6 +821,25 @@ public class KelpFusion {
 
     public String getArea() {
         return area;
+    }
+
+    public void setSPGUsage(ArrayList<Line> userTrajectoryLines) throws TransformException {
+        for (Line spgLine : SPG) {
+            spgLine.resetUsageCount();
+        }
+        
+        for (Line userLine : userTrajectoryLines) {
+            TrajectoryPoint[] endPoints = userLine.getEndPoints();
+            TrajectoryPoint point0 = selectedLocations.get(endPoints[0].getCoordinate()),
+                    point1 = selectedLocations.get(endPoints[1].getCoordinate());
+            Line line = new Line(userLine.getID(), point0, point1);
+            ArrayList<Line> shortestPathFromSPG = getShortestPath(line, SPG); //uses dijkstra's algorithm
+            if (shortestPathFromSPG != null) {
+                for (Line spgLine : shortestPathFromSPG) {
+                    spgLine.incrementUsageCount();
+                }
+            }
+        }
     }
 
     /**
