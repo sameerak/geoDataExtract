@@ -181,6 +181,11 @@ public class Line implements LineInterface, Comparable<Line> {
         endPoints[1].addConnection(this);
     }
 
+    public void addMUPConnection() {
+        endPoints[0].addMUPConnection(this);
+        endPoints[1].addMUPConnection(this);
+    }
+
     public void removeConnections() {
         endPoints[0].removeConnections();
         endPoints[1].removeConnections();

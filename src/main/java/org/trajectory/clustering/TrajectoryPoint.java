@@ -14,6 +14,7 @@ public class TrajectoryPoint implements Comparable<TrajectoryPoint> {
     private long tweetID;
     private long timestamp;
     private ArrayList<Line> connections = null; // in order to calculate shortest path between 2 points
+    private ArrayList<Line> MUPconnections = null; // in order to calculate most used path between 2 points
     private ArrayList<Line> shortestPath;
     private boolean visited = false;
     private double distanceToTarget;
@@ -124,5 +125,20 @@ public class TrajectoryPoint implements Comparable<TrajectoryPoint> {
     @Override
     public String toString() {
         return x + "," + y;
+    }
+
+    public ArrayList<Line> getMUPConnections() {
+        return MUPconnections;
+    }
+
+    public void addMUPConnection(Line connection) {
+        if (MUPconnections == null) {
+            MUPconnections = new ArrayList<Line>();
+        }
+        MUPconnections.add(connection);
+    }
+
+    public void removeMUPConnections() {
+        MUPconnections = null;
     }
 }
