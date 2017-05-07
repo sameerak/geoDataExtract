@@ -16,6 +16,7 @@ import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.opengis.referencing.operation.TransformException;
 import org.trajectory.clustering.Line;
+import org.trajectory.clustering.LineUsageDescendingComparator;
 import org.trajectory.clustering.TrajectoryPoint;
 
 import java.util.*;
@@ -840,6 +841,118 @@ public class KelpFusion {
                 }
             }
         }
+    }
+
+    public ArrayList<Line> getMUP() throws TransformException {
+        System.out.println("MUP calculation Started -------------");
+        ArrayList<Line> mup = new ArrayList<Line>();
+
+        Collections.sort(SPG, new LineUsageDescendingComparator());
+
+        int progress = 0,added = 0;
+        for (Line spgLine : SPG) {
+            ArrayList<Line> shortestPathFromMUP = getMostUsedPath(spgLine, mup); //uses modified A* algo
+//            Coordinate[] endpoints = gLine.getCoordinates();
+//            double length = JTS.orthodromicDistance(endpoints[0], endpoints[1], sourceCRS) * 1000;
+//            double length = gLine.getLength(); //with this value all the lengths become less than 1
+//            double length = gLine.getOrthodromicDistance();
+            if (shortestPathFromMUP == null /*|| getMinPathUsage(shortestPathFromMUP) <= spgLine.getUsageCount()*/) {
+                spgLine.addMUPConnection();
+                mup.add(spgLine);
+                ++added;
+            }
+            ++progress;
+//            System.out.println("########### Progress = " + progress + "/" + G.size() + ", added = " + added);
+        }
+        System.out.println("########### Progress = " + progress + "/" + G.size() + ", added = " + added);
+        System.out.println("MUP calculation FINISHED !!!!!!!!!!!!!!");
+
+        return mup;
+    }
+
+    private int getMinPathUsage(ArrayList<Line> shortestPathFromMUP) {
+        //if shortest path does not exist
+        if (shortestPathFromMUP == null) {
+            return -1;
+        }
+
+        int minPathUsage = Integer.MAX_VALUE;
+
+        for (Line line : shortestPathFromMUP) {
+            if (line.getUsageCount() < minPathUsage) {
+                minPathUsage = line.getUsageCount();
+            }
+        }
+
+        return minPathUsage;
+    }
+
+    private ArrayList<Line> getMostUsedPath(Line gLine, ArrayList<Line> mup) throws TransformException {
+        TrajectoryPoint[] endPoints = gLine.getEndPoints();
+
+        if (endPoints[0].getMUPConnections() == null || endPoints[1].getMUPConnections() == null) {
+            return null;
+        }
+
+        //make all previous shortest path calculations null
+        for (Line line : mup) {
+            line.clearEndPointShortestPaths();
+        }
+
+        ArrayList<TrajectoryPoint> pointQueue = new ArrayList<TrajectoryPoint>();
+        HashSet<Long> points_to_visit = new HashSet<Long>();
+
+        endPoints[0].setDistanceToTarget(gLine.getOrthodromicDistance());
+        endPoints[0].setShortestPath(new ArrayList<Line>());
+        pointQueue.add(endPoints[0]);
+        points_to_visit.add(endPoints[0].getTweetID());
+
+        while (!pointQueue.isEmpty()) {
+            Collections.sort(pointQueue);
+
+            TrajectoryPoint point = pointQueue.get(0);
+            pointQueue.remove(0);
+            point.setVisited(true);
+            points_to_visit.remove(point.getTweetID());
+            for (Line line : point.getMUPConnections()) {
+                //check and select the other node not the one we originated from
+                TrajectoryPoint[] tmpEndPoints = line.getEndPoints();
+                TrajectoryPoint otherEndPoint = tmpEndPoints[0];
+                if (otherEndPoint.getTweetID() == point.getTweetID()){
+                    otherEndPoint = tmpEndPoints[1];
+                }
+
+                //shortest path = point.getshortestpath + this line
+                ArrayList<Line> tmpShortestPath = new ArrayList<Line>();
+                tmpShortestPath.addAll(point.getShortestPath());
+                tmpShortestPath.add(line);
+
+                //for that other point add this line to its shortest path
+                double existingPathWeight = (otherEndPoint.getShortestPath() == null) ?
+                        Double.MAX_VALUE : getPathWeight(otherEndPoint.getShortestPath(), false),
+                        tmpPathWeight = getPathWeight(tmpShortestPath, false);
+                if (existingPathWeight > tmpPathWeight) {
+                    otherEndPoint.setShortestPath(tmpShortestPath);
+                }
+                if (otherEndPoint.getShortestPath() == null) {
+                    otherEndPoint.setShortestPath(tmpShortestPath);
+                }
+
+                //if process meets target before processing all points
+                if (otherEndPoint.getTweetID() == endPoints[1].getTweetID()){
+                    return tmpShortestPath;
+                }
+
+                if (!otherEndPoint.isVisited() && !points_to_visit.contains(otherEndPoint.getTweetID())) {
+                    otherEndPoint.setDistanceToTarget(tmpPathWeight);
+                    points_to_visit.add(otherEndPoint.getTweetID());
+                    pointQueue.add(otherEndPoint);
+                }
+            }
+        }
+
+        //return whatever set as target's shortest path
+        return endPoints[1].getShortestPath();
     }
 
     /**
