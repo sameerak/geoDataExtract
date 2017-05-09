@@ -17,6 +17,7 @@ public class TrajectoryPoint implements Comparable<TrajectoryPoint> {
     private ArrayList<Line> shortestPath;
     private boolean visited = false;
     private double distanceToTarget;
+    private int setID = -1;
 
     public TrajectoryPoint(double x, double y, long tweetID, long timestamp){
         this.x = x;
@@ -124,5 +125,13 @@ public class TrajectoryPoint implements Comparable<TrajectoryPoint> {
     @Override
     public String toString() {
         return x + "," + y;
+    }
+
+    public int getSetID() {
+        return setID;
+    }
+
+    public void setSetID(int setID) {
+        this.setID = setID;
     }
 }
