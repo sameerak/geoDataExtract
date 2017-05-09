@@ -2,17 +2,12 @@ package org.sameera.geo.concavehull;
 
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
-import com.vividsolutions.jts.geom.GeometryFactory;
-import com.vividsolutions.jts.geom.Point;
 import com.vividsolutions.jts.geom.prep.PreparedGeometry;
 import com.vividsolutions.jts.geom.prep.PreparedGeometryFactory;
 import com.vividsolutions.jts.index.SpatialIndex;
 import com.vividsolutions.jts.index.strtree.STRtree;
 import com.vividsolutions.jts.util.GeometricShapeFactory;
-import org.geotools.feature.DefaultFeatureCollection;
 import org.geotools.geometry.jts.JTS;
-import org.geotools.geometry.jts.JTSFactoryFinder;
-import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.opengis.referencing.operation.TransformException;
 import org.trajectory.clustering.Line;
@@ -94,6 +89,113 @@ public class KelpFusion {
         return SPG;
     }
 
+    public ArrayList<Line> GetShortestPathGraphViaMST(ArrayList<TrajectoryPoint> pointSet, double t) throws TransformException {
+        //create delaunay graph
+        System.out.println("started SPG calculation Via MST !!!!!!!!!!!!!!");
+        if (G == null) {
+//            G = createReachabilityGraph(pointSet); // this is suggested by original paper , Cost = O(n^2)
+            // as creation of reachability graph takes long time for tweet data
+            // We are using Delaunay Triangulation  , Cost = O(n*lg(n))
+            G = createDelaunayGraph(pointSet);
+        }
+        System.out.println("G calculation FINISHED !!!!!!!!!!!!!! G.size = " + G.size());
+
+        //if there is a already created SPG
+        if (SPG != null) {
+            if (previousT == t) {
+                return SPG; //return it
+            } else {
+                for (Line gLine: SPG) {
+                    gLine.removeConnections();
+                }
+            }
+        }
+
+        previousT = t;
+        SPG = new ArrayList<Line>();
+        ArrayList<Line> notInMST = new ArrayList<Line>();
+
+        setOperator setOperator = new setOperator();
+
+        System.out.println("MST creation started --------------");
+
+        //create MST
+        int progress = 0,added = 0,SetID = 0;
+        TrajectoryPoint[] endPoints;
+        for (Line gLine: G) {
+            endPoints = gLine.getEndPoints();
+
+            //TODO need a TrajectoryPoint set data structure to identify cycle creation
+            //if selected endpoints are not connected at all
+            if (endPoints[0].getSetID() == -1 && endPoints[1].getSetID() == -1){
+                //then add this line to SPG
+                gLine.setWeight(Math.pow(gLine.getOrthodromicDistance(), t));
+                gLine.addConnection();
+                SPG.add(gLine);
+                ++added;
+                //Create new set with these 2 points
+                HashSet<TrajectoryPoint> newSet = new HashSet<TrajectoryPoint>();
+                newSet.add(endPoints[0]);
+                newSet.add(endPoints[1]);
+                setOperator.addSet(SetID, newSet);
+                endPoints[0].setSetID(SetID);
+                endPoints[1].setSetID(SetID);
+                ++SetID;
+            } //else if one of the selected points are connected
+            else if (endPoints[0].getSetID() == -1 || endPoints[1].getSetID() == -1){
+                //then add this line to SPG
+                gLine.setWeight(Math.pow(gLine.getOrthodromicDistance(), t));
+                gLine.addConnection();
+                SPG.add(gLine);
+                ++added;
+                //add the not connected point to connected set
+                TrajectoryPoint connectedPoint = (endPoints[0].getSetID() == -1) ? endPoints[1] : endPoints[0],
+                notConnectedPoint = (endPoints[0].getSetID() == -1) ? endPoints[0] : endPoints[1];
+
+                setOperator.getSet(connectedPoint.getSetID()).add(notConnectedPoint);
+                notConnectedPoint.setSetID(connectedPoint.getSetID());
+            } //else if both points are connected to sets we need to check intersection.
+            else if ((endPoints[0].getSetID() != endPoints[1].getSetID()) && !setOperator.isIntersect(endPoints[0].getSetID(),endPoints[1].getSetID())) {
+                //then add this line to SPG
+                gLine.setWeight(Math.pow(gLine.getOrthodromicDistance(), t));
+                gLine.addConnection();
+                SPG.add(gLine);
+                ++added;
+                //Union the two point sets
+                setOperator.makeUnion(endPoints[0].getSetID(),endPoints[1].getSetID());
+            } else {
+                notInMST.add(gLine);
+            }
+            ++progress;
+        }
+
+        System.out.println("########### Progress = " + progress + "/" + G.size() + ", added = " + added);
+        System.out.println("MST calculation FINISHED ---------------");
+
+        //create SPG
+        System.out.println("SPG creation started --------------");
+        progress = 0;
+        added = 0;
+        for (Line gLine: notInMST) {
+            ArrayList<Line> shortestPathFromSPG = getShortestPath(gLine, SPG, true); //uses dijkstra's algorithm
+            Coordinate[] endpoints = gLine.getCoordinates();
+            double length = gLine.getOrthodromicDistance();
+            if (shortestPathFromSPG == null || getPathWeight(shortestPathFromSPG, true) >= Math.pow(length, t)) {
+                gLine.setWeight(Math.pow(length, t));
+                gLine.addConnection();
+                SPG.add(gLine);
+                ++added;
+            }
+            ++progress;
+        }
+        System.out.println("########### Progress = " + progress + "/" + notInMST.size() + ", added = " + added);
+        System.out.println("SPG calculation FINISHED !!!!!!!!!!!!!!");
+
+        return SPG;
+    }
+
+
+
     /**
      *This method uses dijkstra's algorithm to find the shortest path between endpoints of the line
      *
@@ -101,7 +203,7 @@ public class KelpFusion {
      * @param spg
      * @return shortest path calculated with lines contained in spg
      */
-    private ArrayList<Line> getShortestPath(Line gLine, ArrayList<Line> spg) throws TransformException {
+    private ArrayList<Line> getShortestPath(Line gLine, ArrayList<Line> spg, boolean useWeights) throws TransformException {
         TrajectoryPoint[] endPoints = gLine.getEndPoints();
 
         if (endPoints[0].getConnections() == null || endPoints[1].getConnections() == null) {
@@ -143,8 +245,8 @@ public class KelpFusion {
 
                 //for that other point add this line to its shortest path
                 double existingPathWeight = (otherEndPoint.getShortestPath() == null) ?
-                        Double.MAX_VALUE : getPathWeight(otherEndPoint.getShortestPath(), false),
-                        tmpPathWeight = getPathWeight(tmpShortestPath, false);
+                        Double.MAX_VALUE : getPathWeight(otherEndPoint.getShortestPath(), useWeights),
+                        tmpPathWeight = getPathWeight(tmpShortestPath, useWeights);
                 if (existingPathWeight > tmpPathWeight) {
                     otherEndPoint.setShortestPath(tmpShortestPath);
                 }
@@ -823,23 +925,29 @@ public class KelpFusion {
         return area;
     }
 
-    public void setSPGUsage(ArrayList<Line> userTrajectoryLines) throws TransformException {
+    public int setSPGUsage(ArrayList<Line> userTrajectoryLines) throws TransformException {
         for (Line spgLine : SPG) {
             spgLine.resetUsageCount();
         }
-        
+
+        int maxUsage = 0;
+
         for (Line userLine : userTrajectoryLines) {
             TrajectoryPoint[] endPoints = userLine.getEndPoints();
             TrajectoryPoint point0 = selectedLocations.get(endPoints[0].getCoordinate()),
                     point1 = selectedLocations.get(endPoints[1].getCoordinate());
             Line line = new Line(userLine.getID(), point0, point1);
-            ArrayList<Line> shortestPathFromSPG = getShortestPath(line, SPG); //uses dijkstra's algorithm
+            ArrayList<Line> shortestPathFromSPG = getShortestPath(line, SPG, false); //uses dijkstra's algorithm
             if (shortestPathFromSPG != null) {
                 for (Line spgLine : shortestPathFromSPG) {
                     spgLine.incrementUsageCount();
+                    if (spgLine.getUsageCount() > maxUsage) {
+                        maxUsage = spgLine.getUsageCount();
+                    }
                 }
             }
         }
+        return maxUsage;
     }
 
     /**
@@ -911,6 +1019,42 @@ public class KelpFusion {
                 }
             }
             return result;
+        }
+    }
+
+    /**
+     * This is a helper class to calculate MST using Kruskal's method
+     */
+    private class setOperator {
+        private HashMap<Integer, HashSet<TrajectoryPoint>> pointSets = new HashMap<Integer, HashSet<TrajectoryPoint>>();
+
+        public HashSet<TrajectoryPoint> getSet(int id) {
+            return pointSets.get(id);
+        }
+
+        public void addSet (int id, HashSet<TrajectoryPoint> set) {
+            pointSets.put(id, set);
+        }
+
+        public boolean isIntersect(int setID1, int setID2) {
+            HashSet<TrajectoryPoint> intersection = new HashSet<TrajectoryPoint>(pointSets.get(setID1));
+            HashSet<TrajectoryPoint> set2 = pointSets.get(setID2);
+
+            intersection.retainAll(set2); //after this intersection contains elements that present in both sets
+
+            return intersection.size() > 0;
+        }
+
+        public void makeUnion(int setID1, int setID2) {
+            int smallerID = (pointSets.get(setID1).size() > pointSets.get(setID2).size()) ? setID2 : setID1,
+                    largerID = (smallerID == setID1) ? setID2 : setID1;
+
+            for (TrajectoryPoint point : pointSets.get(smallerID)) {
+                point.setSetID(largerID);
+            }
+
+            pointSets.get(largerID).addAll(pointSets.get(smallerID));
+            pointSets.remove(smallerID);
         }
     }
 }
