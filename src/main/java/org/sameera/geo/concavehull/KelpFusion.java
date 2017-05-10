@@ -73,8 +73,8 @@ public class KelpFusion {
         //implements shortest path graph creation from KelpFusion paper
         int progress = 0,added = 0;
         for (Line gLine: G) {
-//            ArrayList<Line> shortestPathFromSPG = getShortestPath(gLine, SPG); //uses dijkstra's algorithm
-            ArrayList<Line> shortestPathFromSPG = getShortestPathAStar(gLine, SPG, t); //uses modified A* algo
+            ArrayList<Line> shortestPathFromSPG = getShortestPath(gLine, SPG, true); //uses dijkstra's algorithm
+//            ArrayList<Line> shortestPathFromSPG = getShortestPathAStar(gLine, SPG, t); //uses modified A* algo
             Coordinate[] endpoints = gLine.getCoordinates();
 //            double length = JTS.orthodromicDistance(endpoints[0], endpoints[1], sourceCRS) * 1000;
 //            double length = gLine.getLength(); //with this value all the lengths become less than 1
@@ -130,7 +130,6 @@ public class KelpFusion {
         for (Line gLine: G) {
             endPoints = gLine.getEndPoints();
 
-            //TODO need a TrajectoryPoint set data structure to identify cycle creation
             //if selected endpoints are not connected at all
             if (endPoints[0].getSetID() == -1 && endPoints[1].getSetID() == -1){
                 //then add this line to SPG
@@ -210,7 +209,7 @@ public class KelpFusion {
             }
             //else
             ArrayList<Line> shortestPathFromSPG = getShortestPath(gLine, SPG, true); //uses dijkstra's algorithm
-            Coordinate[] endpoints = gLine.getCoordinates();
+//            ArrayList<Line> shortestPathFromSPG = getShortestPathAStar(gLine, SPG, t); //uses modified A* algo
             double length = gLine.getOrthodromicDistance();
             if (shortestPathFromSPG == null || getPathWeight(shortestPathFromSPG, true) >= Math.pow(length, t)) {
                 gLine.setWeight(Math.pow(length, t));
@@ -277,6 +276,11 @@ public class KelpFusion {
                 tmpShortestPath.addAll(point.getShortestPath());
                 tmpShortestPath.add(line);
 
+                //if considering point is the target
+                if (point.getTweetID() == endPoints[1].getTweetID()){/*and all the edges connected to endpoint[1] are covered*/
+                    return tmpShortestPath;
+                }
+
                 //for that other point add this line to its shortest path
                 double existingPathWeight = (otherEndPoint.getShortestPath() == null) ?
                         Double.MAX_VALUE : getPathWeight(otherEndPoint.getShortestPath(), useWeights),
@@ -286,11 +290,6 @@ public class KelpFusion {
                 }
                 if (otherEndPoint.getShortestPath() == null) {
                     otherEndPoint.setShortestPath(tmpShortestPath);
-                }
-
-                //if process meets target before processing all points
-                if (otherEndPoint.getTweetID() == endPoints[1].getTweetID()){
-                    return tmpShortestPath;
                 }
 
                 if (!otherEndPoint.isVisited() && !points_to_visit.contains(otherEndPoint.getTweetID())) {
@@ -353,6 +352,11 @@ public class KelpFusion {
                 tmpShortestPath.addAll(point.getShortestPath());
                 tmpShortestPath.add(line);
 
+                //if point to consider expansion is target
+                if (point.getTweetID() == endPoints[1].getTweetID()){
+                    return tmpShortestPath;
+                }
+
                 //for that other point add this line to its shortest path
                 double existingPathWeight = (otherEndPoint.getShortestPath() == null) ?
                         Double.MAX_VALUE : getPathWeight(otherEndPoint.getShortestPath(), true),
@@ -362,11 +366,6 @@ public class KelpFusion {
                 }
                 if (otherEndPoint.getShortestPath() == null) {
                     otherEndPoint.setShortestPath(tmpShortestPath);
-                }
-
-                //if process meets target before processing all points
-                if (otherEndPoint.getTweetID() == endPoints[1].getTweetID()){
-                    return tmpShortestPath;
                 }
 
                 if (!otherEndPoint.isVisited() && !points_to_visit.contains(otherEndPoint.getTweetID())) {
