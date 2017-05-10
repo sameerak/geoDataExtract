@@ -264,6 +264,12 @@ public class KelpFusion {
             point.setVisited(true);
             points_to_visit.remove(point.getTweetID());
             for (Line line : point.getConnections()) {
+
+                //if considering point is the target
+                if (point.getTweetID() == endPoints[1].getTweetID()){/*and all the edges connected to endpoint[1] are covered*/
+                    return point.getShortestPath();
+                }
+
                 //check and select the other node not the one we originated from
                 TrajectoryPoint[] tmpEndPoints = line.getEndPoints();
                 TrajectoryPoint otherEndPoint = tmpEndPoints[0];
@@ -275,12 +281,6 @@ public class KelpFusion {
                 ArrayList<Line> tmpShortestPath = new ArrayList<Line>();
                 tmpShortestPath.addAll(point.getShortestPath());
                 tmpShortestPath.add(line);
-
-                //if considering point is the target
-                if (point.getTweetID() == endPoints[1].getTweetID()){/*and all the edges connected to endpoint[1] are covered*/
-                    return tmpShortestPath;
-                }
-
                 //for that other point add this line to its shortest path
                 double existingPathWeight = (otherEndPoint.getShortestPath() == null) ?
                         Double.MAX_VALUE : getPathWeight(otherEndPoint.getShortestPath(), useWeights),
@@ -340,6 +340,12 @@ public class KelpFusion {
             point.setVisited(true);
             points_to_visit.remove(point.getTweetID());
             for (Line line : point.getConnections()) {
+
+                //if point to consider expansion is target
+                if (point.getTweetID() == endPoints[1].getTweetID()){
+                    return point.getShortestPath();
+                }
+
                 //check and select the other node not the one we originated from
                 TrajectoryPoint[] tmpEndPoints = line.getEndPoints();
                 TrajectoryPoint otherEndPoint = tmpEndPoints[0];
@@ -351,12 +357,6 @@ public class KelpFusion {
                 ArrayList<Line> tmpShortestPath = new ArrayList<Line>();
                 tmpShortestPath.addAll(point.getShortestPath());
                 tmpShortestPath.add(line);
-
-                //if point to consider expansion is target
-                if (point.getTweetID() == endPoints[1].getTweetID()){
-                    return tmpShortestPath;
-                }
-
                 //for that other point add this line to its shortest path
                 double existingPathWeight = (otherEndPoint.getShortestPath() == null) ?
                         Double.MAX_VALUE : getPathWeight(otherEndPoint.getShortestPath(), true),
