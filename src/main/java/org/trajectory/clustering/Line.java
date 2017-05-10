@@ -1,6 +1,7 @@
 package org.trajectory.clustering;
 
 import com.vividsolutions.jts.geom.Coordinate;
+import com.vividsolutions.jts.geom.Geometry;
 import org.geotools.geometry.jts.JTS;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.opengis.referencing.operation.TransformException;
@@ -18,6 +19,7 @@ public class Line implements LineInterface, Comparable<Line> {
     private TrajectoryPoint centerPoint;
     private int[] adjacentNeighbours = new int[2];
     private int numOfNeighbours = 0;
+    private Geometry geometry;
 
     public Line(int ID, TrajectoryPoint point1, TrajectoryPoint point2){
         endPoints[0] = point1;
@@ -256,5 +258,13 @@ public class Line implements LineInterface, Comparable<Line> {
 
     public int getUsageCount() {
         return usageCount;
+    }
+
+    public Geometry getGeometry() {
+        return geometry;
+    }
+
+    public void setGeometry(Geometry geometry) {
+        this.geometry = geometry;
     }
 }
