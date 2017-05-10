@@ -8,8 +8,11 @@ import com.vividsolutions.jts.geom.prep.PreparedGeometryFactory;
 import com.vividsolutions.jts.index.SpatialIndex;
 import com.vividsolutions.jts.index.strtree.STRtree;
 import com.vividsolutions.jts.util.GeometricShapeFactory;
+import org.geotools.feature.DefaultFeatureCollection;
+import org.geotools.filter.FilterFactoryImpl;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.geometry.jts.JTSFactoryFinder;
+import org.opengis.filter.FilterFactory;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.opengis.referencing.operation.TransformException;
 import org.trajectory.clustering.Line;
@@ -174,21 +177,34 @@ public class KelpFusion {
         System.out.println("########### Progress = " + progress + "/" + G.size() + ", added = " + added);
         System.out.println("MST calculation FINISHED ---------------");
 
+        //creating spatial index
+        preparedGeometryIndex = new PreparedGeometryIndex();
+        GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+
+        //add all notInMST edges to spatial index
+        for (Line gLine: notInMST) {
+            //create line geometries
+            Geometry lineGeometry = geometryFactory.createLineString(gLine.getCoordinates());
+            //set them to line objects and put them in index
+            gLine.setGeometry(lineGeometry);
+            preparedGeometryIndex.insert(lineGeometry);
+            //for all geometries set their user data as adding
+            lineGeometry.setUserData(true);
+        }
+
         //create SPG
         System.out.println("SPG creation started --------------");
         progress = 0;
         added = 0;
-        preparedGeometryIndex = new PreparedGeometryIndex();
-        GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
 
         for (Line gLine: notInMST) {
             ++progress;
-            Geometry centerCircle = createCircle(gLine.getCenterPointCoordinate(), gLine.getLength());
-            List gabrielNeighbourhood = preparedGeometryIndex.intersects(centerCircle);
-            //if there is a edge with in the gabriel neighbourhood of gline
-            if (gabrielNeighbourhood.size() > 0) {
-                //then add gline to spatial index
-                preparedGeometryIndex.insert(geometryFactory.createLinearRing(gLine.getCoordinates()));
+            Geometry gabrielNeighbourhood = createCircle(gLine.getCenterPointCoordinate(), gLine.getLength());
+//            List gabrielNeighbourhood = preparedGeometryIndex.intersects(centerCircle);
+            //if there is a edge with in the gabriel neighbourhood of gline which is not added
+            if (preparedGeometryIndex.isThereNotAddedGeometryIntersecting(gabrielNeighbourhood)) { //need to write a method to check if there is a edge not added
+                //then set gline user data to not added
+                gLine.getGeometry().setUserData(false);
                 //skip remaining operations and move on to next line
                 continue;
             }
@@ -202,8 +218,8 @@ public class KelpFusion {
                 SPG.add(gLine);
                 ++added;
             } else {
-                //add this gline to spatial index
-                preparedGeometryIndex.insert(geometryFactory.createLinearRing(gLine.getCoordinates()));
+                //then set gline user data to not added
+                gLine.getGeometry().setUserData(false);
             }
         }
         System.out.println("########### Progress = " + progress + "/" + notInMST.size() + ", added = " + added);
@@ -1042,6 +1058,18 @@ public class KelpFusion {
                 }
             }
             return result;
+        }
+
+        public boolean isThereNotAddedGeometryIntersecting(Geometry gabrielNeighbourhood) {
+            List candidates = query(gabrielNeighbourhood);
+            for (Iterator it = candidates.iterator(); it.hasNext(); ) {
+                PreparedGeometry prepGeom = (PreparedGeometry) it.next();
+                if (prepGeom.getGeometry().getUserData().equals(false)
+                        && prepGeom.intersects(gabrielNeighbourhood)) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
