@@ -974,10 +974,15 @@ public class KelpFusion {
 
         }
 
+        public void insert(Geometry geometry)
+        {
+            index.insert(geometry.getEnvelopeInternal(), PreparedGeometryFactory.prepare(geometry));
+        }
+
         /**
-         * Inserts a collection of Geometrys into the index.
+         * Inserts a collection of Geometries into the index.
          *
-         * @param geoms a collection of Geometrys to insert
+         * @param geoms a collection of Geometries to insert
          */
         public void insert(Collection geoms)
         {
