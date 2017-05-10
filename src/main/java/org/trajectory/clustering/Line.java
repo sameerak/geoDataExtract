@@ -119,8 +119,7 @@ public class Line implements LineInterface, Comparable<Line> {
     }
 
     public Coordinate[] getCoordinates() {
-        Coordinate[] coords =  {new Coordinate(endPoints[0].getX(), endPoints[0].getY()),
-                                new Coordinate(endPoints[1].getX(), endPoints[1].getY())};
+        Coordinate[] coords =  {endPoints[0].getCoordinate(), endPoints[1].getCoordinate()};
         return coords;
     }
 
