@@ -2,12 +2,14 @@ package org.sameera.geo.concavehull;
 
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.prep.PreparedGeometry;
 import com.vividsolutions.jts.geom.prep.PreparedGeometryFactory;
 import com.vividsolutions.jts.index.SpatialIndex;
 import com.vividsolutions.jts.index.strtree.STRtree;
 import com.vividsolutions.jts.util.GeometricShapeFactory;
 import org.geotools.geometry.jts.JTS;
+import org.geotools.geometry.jts.JTSFactoryFinder;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.opengis.referencing.operation.TransformException;
 import org.trajectory.clustering.Line;
@@ -176,7 +178,21 @@ public class KelpFusion {
         System.out.println("SPG creation started --------------");
         progress = 0;
         added = 0;
+        preparedGeometryIndex = new PreparedGeometryIndex();
+        GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+
         for (Line gLine: notInMST) {
+            ++progress;
+            Geometry centerCircle = createCircle(gLine.getCenterPointCoordinate(), gLine.getLength());
+            List gabrielNeighbourhood = preparedGeometryIndex.intersects(centerCircle);
+            //if there is a edge with in the gabriel neighbourhood of gline
+            if (gabrielNeighbourhood.size() > 0) {
+                //then add gline to spatial index
+                preparedGeometryIndex.insert(geometryFactory.createLinearRing(gLine.getCoordinates()));
+                //skip remaining operations and move on to next line
+                continue;
+            }
+            //else
             ArrayList<Line> shortestPathFromSPG = getShortestPath(gLine, SPG, true); //uses dijkstra's algorithm
             Coordinate[] endpoints = gLine.getCoordinates();
             double length = gLine.getOrthodromicDistance();
@@ -185,8 +201,10 @@ public class KelpFusion {
                 gLine.addConnection();
                 SPG.add(gLine);
                 ++added;
+            } else {
+                //add this gline to spatial index
+                preparedGeometryIndex.insert(geometryFactory.createLinearRing(gLine.getCoordinates()));
             }
-            ++progress;
         }
         System.out.println("########### Progress = " + progress + "/" + notInMST.size() + ", added = " + added);
         System.out.println("SPG calculation FINISHED !!!!!!!!!!!!!!");
