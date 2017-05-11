@@ -8,6 +8,7 @@ import org.geotools.geometry.jts.JTSFactoryFinder;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 
 public class TrajectoryPoint implements Comparable<TrajectoryPoint> {
     private double x,y;
@@ -18,6 +19,7 @@ public class TrajectoryPoint implements Comparable<TrajectoryPoint> {
     private boolean visited = false;
     private double distanceToTarget;
     private int setID = -1;
+    private HashSet<Line> connectingLines = new HashSet<Line>();
 
     public TrajectoryPoint(double x, double y, long tweetID, long timestamp){
         this.x = x;
@@ -133,5 +135,13 @@ public class TrajectoryPoint implements Comparable<TrajectoryPoint> {
 
     public void setSetID(int setID) {
         this.setID = setID;
+    }
+
+    public boolean removeConnectingLine(Line connectingLine) {
+        return connectingLines.remove(connectingLine);
+    }
+
+    public boolean addConnectingLine(Line connectingLine) {
+       return this.connectingLines.add(connectingLine);
     }
 }
