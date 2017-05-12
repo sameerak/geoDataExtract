@@ -20,6 +20,8 @@ public class Line implements LineInterface, Comparable<Line> {
     private int[] adjacentNeighbours = new int[2];
     private int numOfNeighbours = 0;
     private Geometry geometry;
+    private boolean inSPG;
+    private boolean checkedForSPG;
 
     public Line(int ID, TrajectoryPoint point1, TrajectoryPoint point2){
         endPoints[0] = point1;
@@ -183,6 +185,8 @@ public class Line implements LineInterface, Comparable<Line> {
     }
 
     public void removeConnections() {
+        this.inSPG = false;
+        this.checkedForSPG = false;
         endPoints[0].removeConnections();
         endPoints[1].removeConnections();
     }
@@ -266,5 +270,21 @@ public class Line implements LineInterface, Comparable<Line> {
 
     public void setGeometry(Geometry geometry) {
         this.geometry = geometry;
+    }
+
+    public boolean isInSPG() {
+        return inSPG;
+    }
+
+    public void setInSPG(boolean inSPG) {
+        this.inSPG = inSPG;
+    }
+
+    public boolean isCheckedForSPG() {
+        return checkedForSPG;
+    }
+
+    public void setCheckedForSPG(boolean checkedForSPG) {
+        this.checkedForSPG = checkedForSPG;
     }
 }
