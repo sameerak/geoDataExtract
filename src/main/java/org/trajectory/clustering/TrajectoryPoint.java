@@ -144,4 +144,8 @@ public class TrajectoryPoint implements Comparable<TrajectoryPoint> {
     public boolean addConnectingLine(Line connectingLine) {
        return this.connectingLines.add(connectingLine);
     }
+
+    public HashSet<Line> getConnectingLines() {
+        return connectingLines;
+    }
 }
