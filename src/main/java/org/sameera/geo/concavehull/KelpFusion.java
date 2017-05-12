@@ -28,6 +28,8 @@ public class KelpFusion {
     GeometricShapeFactory shapeFactory = new GeometricShapeFactory();
     ArrayList<Line> G = null;
     ArrayList<Line> SPG = null;
+    ArrayList<Line> MST = null;
+    ArrayList<Line> notInMST = null;
     private String area;
     private double previousT;
     CoordinateReferenceSystem sourceCRS;
@@ -114,70 +116,81 @@ public class KelpFusion {
         }
 
         previousT = t;
-        SPG = new ArrayList<Line>();
-        ArrayList<Line> notInMST = new ArrayList<Line>();
+        int progress = 0, added = 0;
 
         setOperator setOperator = new setOperator();
 
         System.out.println("MST creation started --------------");
 
-        //create MST
-        int progress = 0,added = 0,SetID = 0;
-        TrajectoryPoint[] endPoints;
-        for (Line gLine: G) {
-            endPoints = gLine.getEndPoints();
+        if (MST == null && notInMST == null) {
+            MST = new ArrayList<>();
+            notInMST = new ArrayList<>();
+            //create MST
+            int SetID = 0;
+            TrajectoryPoint[] endPoints;
+            for (Line gLine : G) {
+                endPoints = gLine.getEndPoints();
 
-            //if selected endpoints are not connected at all
-            if (endPoints[0].getSetID() == -1 && endPoints[1].getSetID() == -1){
-                //then add this line to SPG
-                gLine.setWeight(Math.pow(gLine.getOrthodromicDistance(), t));
-                gLine.addConnection();
-                SPG.add(gLine);
-                ++added;
-                //Create new set with these 2 points
-                HashSet<TrajectoryPoint> newSet = new HashSet<TrajectoryPoint>();
-                newSet.add(endPoints[0]);
-                newSet.add(endPoints[1]);
-                setOperator.addSet(SetID, newSet);
-                endPoints[0].setSetID(SetID);
-                endPoints[1].setSetID(SetID);
-                ++SetID;
-            } //else if one of the selected points are connected
-            else if (endPoints[0].getSetID() == -1 || endPoints[1].getSetID() == -1){
-                //then add this line to SPG
-                gLine.setWeight(Math.pow(gLine.getOrthodromicDistance(), t));
-                gLine.addConnection();
-                SPG.add(gLine);
-                ++added;
-                //add the not connected point to connected set
-                TrajectoryPoint connectedPoint = (endPoints[0].getSetID() == -1) ? endPoints[1] : endPoints[0],
-                notConnectedPoint = (endPoints[0].getSetID() == -1) ? endPoints[0] : endPoints[1];
+                //if selected endpoints are not connected at all
+                if (endPoints[0].getSetID() == -1 && endPoints[1].getSetID() == -1) {
+                    //then add this line to SPG
+                    MST.add(gLine);
+                    ++added;
+                    //Create new set with these 2 points
+                    HashSet<TrajectoryPoint> newSet = new HashSet<TrajectoryPoint>();
+                    newSet.add(endPoints[0]);
+                    newSet.add(endPoints[1]);
+                    setOperator.addSet(SetID, newSet);
+                    endPoints[0].setSetID(SetID);
+                    endPoints[1].setSetID(SetID);
+                    ++SetID;
+                } //else if one of the selected points are connected
+                else if (endPoints[0].getSetID() == -1 || endPoints[1].getSetID() == -1) {
+                    //then add this line to SPG
+                    MST.add(gLine);
+                    ++added;
+                    //add the not connected point to connected set
+                    TrajectoryPoint connectedPoint = (endPoints[0].getSetID() == -1) ? endPoints[1] : endPoints[0],
+                            notConnectedPoint = (endPoints[0].getSetID() == -1) ? endPoints[0] : endPoints[1];
 
-                setOperator.getSet(connectedPoint.getSetID()).add(notConnectedPoint);
-                notConnectedPoint.setSetID(connectedPoint.getSetID());
-            } //else if both points are connected to sets we need to check intersection.
-            else if ((endPoints[0].getSetID() != endPoints[1].getSetID()) && !setOperator.isIntersect(endPoints[0].getSetID(),endPoints[1].getSetID())) {
-                //then add this line to SPG
-                gLine.setWeight(Math.pow(gLine.getOrthodromicDistance(), t));
-                gLine.addConnection();
-                SPG.add(gLine);
-                ++added;
-                //Union the two point sets
-                setOperator.makeUnion(endPoints[0].getSetID(),endPoints[1].getSetID());
-            } else {
-                notInMST.add(gLine);
+                    setOperator.getSet(connectedPoint.getSetID()).add(notConnectedPoint);
+                    notConnectedPoint.setSetID(connectedPoint.getSetID());
+                } //else if both points are connected to sets we need to check intersection.
+                else if ((endPoints[0].getSetID() != endPoints[1].getSetID()) && !setOperator.isIntersect(endPoints[0].getSetID(), endPoints[1].getSetID())) {
+                    //then add this line to SPG
+                    MST.add(gLine);
+                    ++added;
+                    //Union the two point sets
+                    setOperator.makeUnion(endPoints[0].getSetID(), endPoints[1].getSetID());
+                } else {
+                    notInMST.add(gLine);
+                }
+                ++progress;
             }
-            ++progress;
+
+            System.out.println("########### Progress = " + progress + "/" + G.size() + ", added = " + added);
+            System.out.println("MST calculation FINISHED ---------------");
         }
 
-        System.out.println("########### Progress = " + progress + "/" + G.size() + ", added = " + added);
-        System.out.println("MST calculation FINISHED ---------------");
 
         //creating spatial index
         preparedGeometryIndex = new PreparedGeometryIndex();
         GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
 
-        //add all notInMST edges to spatial index
+        //add all MST edges to spatial index with user data set to true
+        for (Line mstLine: MST) {
+            //create line geometries
+            mstLine.setWeight(Math.pow(mstLine.getOrthodromicDistance(), t));
+            mstLine.addConnection();
+            Geometry lineGeometry = geometryFactory.createLineString(mstLine.getCoordinates());
+            //set them to line objects and put them in index
+            mstLine.setGeometry(lineGeometry);
+            preparedGeometryIndex.insert(lineGeometry);
+            //for all geometries set their user data as adding
+            lineGeometry.setUserData(true);
+        }
+
+        //add all notInMST edges to spatial index with user data set to null
         for (Line gLine: notInMST) {
             //create line geometries
             Geometry lineGeometry = geometryFactory.createLineString(gLine.getCoordinates());
@@ -185,23 +198,26 @@ public class KelpFusion {
             gLine.setGeometry(lineGeometry);
             preparedGeometryIndex.insert(lineGeometry);
             //for all geometries set their user data as adding
-            lineGeometry.setUserData(true);
+            lineGeometry.setUserData(null);
         }
 
         //create SPG
         System.out.println("SPG creation started --------------");
+        SPG = new ArrayList<Line>();
+        SPG.addAll(MST);
         progress = 0;
         added = 0;
+        int skipped = 0;
 
         for (Line gLine: notInMST) {
             ++progress;
             Geometry gabrielNeighbourhood = createCircle(gLine.getCenterPointCoordinate(), gLine.getLength());
-//            List gabrielNeighbourhood = preparedGeometryIndex.intersects(centerCircle);
             //if there is a edge with in the gabriel neighbourhood of gline which is not added
-            if (preparedGeometryIndex.isThereNotAddedGeometryIntersecting(gabrielNeighbourhood)) { //need to write a method to check if there is a edge not added
+            if (preparedGeometryIndex.isThereShorterNotAddedGeometryIntersecting(gabrielNeighbourhood)) {
                 //then set gline user data to not added
                 gLine.getGeometry().setUserData(false);
                 //skip remaining operations and move on to next line
+                ++skipped;
                 continue;
             }
             //else
@@ -212,13 +228,16 @@ public class KelpFusion {
                 gLine.setWeight(Math.pow(length, t));
                 gLine.addConnection();
                 SPG.add(gLine);
+                //then set gline user data to added
+                gLine.getGeometry().setUserData(true);
                 ++added;
             } else {
                 //then set gline user data to not added
                 gLine.getGeometry().setUserData(false);
             }
         }
-        System.out.println("########### Progress = " + progress + "/" + notInMST.size() + ", added = " + added);
+        System.out.println("########### Progress = " + progress + "/" + notInMST.size() + ", added = " + added
+                + ", skipped = " + skipped);
         System.out.println("SPG calculation FINISHED !!!!!!!!!!!!!!");
 
         return SPG;
@@ -1000,9 +1019,9 @@ public class KelpFusion {
      * @author Martin Davis
      *
      */
-    static class PreparedGeometryIndex
+    private class PreparedGeometryIndex
     {
-        private SpatialIndex index = new STRtree();
+        private SpatialIndex index;
 
         /**
          * Creates a new index
@@ -1011,6 +1030,7 @@ public class KelpFusion {
         public PreparedGeometryIndex()
         {
 
+            index = new STRtree();
         }
 
         public void insert(Geometry geometry)
@@ -1065,11 +1085,12 @@ public class KelpFusion {
             return result;
         }
 
-        public boolean isThereNotAddedGeometryIntersecting(Geometry gabrielNeighbourhood) {
+        public boolean isThereShorterNotAddedGeometryIntersecting(Geometry gabrielNeighbourhood) {
             List candidates = query(gabrielNeighbourhood);
             for (Iterator it = candidates.iterator(); it.hasNext(); ) {
                 PreparedGeometry prepGeom = (PreparedGeometry) it.next();
-                if (prepGeom.getGeometry().getUserData().equals(false)
+                if (prepGeom.getGeometry().getUserData() != null
+                        && prepGeom.getGeometry().getUserData().equals(false)
                         && prepGeom.intersects(gabrielNeighbourhood)) {
                     return true;
                 }
