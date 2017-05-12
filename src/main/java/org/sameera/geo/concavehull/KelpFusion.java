@@ -188,17 +188,21 @@ public class KelpFusion {
             preparedGeometryIndex.insert(lineGeometry);
             //for all geometries set their user data as adding
             lineGeometry.setUserData(true);
+            mstLine.setInSPG(true);
+            mstLine.setCheckedForSPG(true);
         }
 
         //add all notInMST edges to spatial index with user data set to null
-        for (Line gLine: notInMST) {
+        for (Line notInMSTLine: notInMST) {
             //create line geometries
-            Geometry lineGeometry = geometryFactory.createLineString(gLine.getCoordinates());
+            Geometry lineGeometry = geometryFactory.createLineString(notInMSTLine.getCoordinates());
             //set them to line objects and put them in index
-            gLine.setGeometry(lineGeometry);
+            notInMSTLine.setGeometry(lineGeometry);
             preparedGeometryIndex.insert(lineGeometry);
             //for all geometries set their user data as adding
             lineGeometry.setUserData(null);
+            notInMSTLine.setInSPG(false);
+            notInMSTLine.setCheckedForSPG(false);
         }
 
         //create SPG
@@ -213,9 +217,11 @@ public class KelpFusion {
             ++progress;
             Geometry gabrielNeighbourhood = createCircle(gLine.getCenterPointCoordinate(), gLine.getLength());
             //if there is a edge with in the gabriel neighbourhood of gline which is not added
-            if (preparedGeometryIndex.isThereShorterNotAddedGeometryIntersecting(gabrielNeighbourhood)) {
+            if (!isEligibleForSPGCalculation(gLine)) {
                 //then set gline user data to not added
                 gLine.getGeometry().setUserData(false);
+                gLine.setCheckedForSPG(true);
+                gLine.setInSPG(false);
                 //skip remaining operations and move on to next line
                 ++skipped;
                 continue;
@@ -230,10 +236,14 @@ public class KelpFusion {
                 SPG.add(gLine);
                 //then set gline user data to added
                 gLine.getGeometry().setUserData(true);
+                gLine.setCheckedForSPG(true);
+                gLine.setInSPG(true);
                 ++added;
             } else {
                 //then set gline user data to not added
                 gLine.getGeometry().setUserData(false);
+                gLine.setCheckedForSPG(true);
+                gLine.setInSPG(false);
             }
         }
         System.out.println("########### Progress = " + progress + "/" + notInMST.size() + ", added = " + added
@@ -243,7 +253,81 @@ public class KelpFusion {
         return SPG;
     }
 
+    private boolean isEligibleForSPGCalculation(Line delaunayEdge) throws TransformException {
+        TrajectoryPoint[] endPoints = delaunayEdge.getEndPoints();
+        HashSet<Line> connectingLines0 = endPoints[0].getConnectingLines();
+        HashSet<Line> connectingLines1 = endPoints[1].getConnectingLines();
 
+        boolean added0 = false, rejected0 = false,
+                added1 = false, rejected1 = false;
+
+        for (Line line : connectingLines0) {
+            if (line.isCheckedForSPG() && withInGabrielNeighbourhood(delaunayEdge, line)) {
+                //check if there are added lines with in gabriel neighbourhood of delaunayLine
+                if (line.isInSPG()) {
+                    added0 = true;
+                } else {
+                    //check if there are rejected lines with in gabriel neighbourhood of delaunayLine
+                    rejected0 = true;
+                }
+            }
+
+            if (added0 && rejected0) { //if both values are set to positive
+                break;
+            }
+        }
+
+        for (Line line : connectingLines1) {
+            if (line.isCheckedForSPG() && withInGabrielNeighbourhood(delaunayEdge, line)) {
+                //check if there are added lines with in gabriel neighbourhood of delaunayLine
+                if (line.isInSPG()) {
+                    added1 = true;
+                } else {
+                    //check if there are rejected lines with in gabriel neighbourhood of delaunayLine
+                    rejected1 = true;
+                }
+            }
+
+            if (added1 && rejected1) { //if both values are set to positive
+                break;
+            }
+        }
+
+        if (added0 && added1) {
+            //if there are added edges with in gabriel neighbourhood from both sides
+            return false;
+        }else if (rejected0 || rejected1) {
+            //if there are rejected edges with in gabriel neighbourhood from any sides
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean withInGabrielNeighbourhood(Line delaunayEdge, Line line) throws TransformException {
+        double AB2 = Math.pow(delaunayEdge.getOrthodromicDistance(), 2),
+                BC2 = Math.pow(line.getOrthodromicDistance(), 2), AC2;
+        //find A and C
+        TrajectoryPoint[] delaunayEndPoints = delaunayEdge.getEndPoints();
+        TrajectoryPoint[] endPoints = line.getEndPoints();
+
+        TrajectoryPoint A = delaunayEndPoints[0], C = endPoints[0];
+
+        if (A == endPoints[0] || A == endPoints[1]) {
+            A = delaunayEndPoints [1];
+        }
+
+        if (C == delaunayEndPoints[0] || C == delaunayEndPoints[1]) {
+            C = endPoints[1];
+        }
+
+        AC2 = Math.pow(JTS.orthodromicDistance(A.getCoordinate(), C.getCoordinate(), sourceCRS) * 1000, 2);
+
+        if (AB2 + BC2 < AC2) { //if ABC create a obtuse angle
+            return false;
+        }
+        return true;
+    }
 
     /**
      *This method uses dijkstra's algorithm to find the shortest path between endpoints of the line
