@@ -217,6 +217,7 @@ public class KelpFusion {
             ++progress;
             Geometry gabrielNeighbourhood = createCircle(gLine.getCenterPointCoordinate(), gLine.getLength());
             //if there is a edge with in the gabriel neighbourhood of gline which is not added
+//            if (preparedGeometryIndex.isThereShorterNotAddedGeometryIntersecting(gabrielNeighbourhood)) {
             if (!isEligibleForSPGCalculation(gLine)) {
                 //then set gline user data to not added
                 gLine.getGeometry().setUserData(false);
@@ -968,10 +969,10 @@ public class KelpFusion {
                 System.out.println("CRITICAL : Line distance could not be updated");
             }
 
-            System.out.println("removing BC line = " + triangle1[C_index].getTweetID() +
-                    "," + triangle2[B_index].getTweetID());
-            System.out.println("Adding AD line = " + triangle2[D_index].getTweetID() +
-                    "," + triangle1[A_index].getTweetID());
+//            System.out.println("removing BC line = " + triangle1[C_index].getTweetID() +
+//                    "," + triangle2[B_index].getTweetID());
+//            System.out.println("Adding AD line = " + triangle2[D_index].getTweetID() +
+//                    "," + triangle1[A_index].getTweetID());
 
             //remove BC line as it is going to be replaced by AD line
             removeFromLineSet(triangle1[C_index], triangle2[B_index]);
@@ -1000,7 +1001,7 @@ public class KelpFusion {
             Triangle2Edges[B_index] = newLine;
             Triangle1Edges[C_index] = newLine;
 
-            System.out.println(triangleA.getPos() + "," + triangleB.getPos() + " FLIPPING count = " + flipCount);
+//            System.out.println(triangleA.getPos() + "," + triangleB.getPos() + " FLIPPING count = " + flipCount);
 //            System.out.println("triangleA = " + triangleA);
 //            System.out.println("triangleB = " + triangleB);
             return true;
