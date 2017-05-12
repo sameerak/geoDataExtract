@@ -8,11 +8,8 @@ import com.vividsolutions.jts.geom.prep.PreparedGeometryFactory;
 import com.vividsolutions.jts.index.SpatialIndex;
 import com.vividsolutions.jts.index.strtree.STRtree;
 import com.vividsolutions.jts.util.GeometricShapeFactory;
-import org.geotools.feature.DefaultFeatureCollection;
-import org.geotools.filter.FilterFactoryImpl;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.geometry.jts.JTSFactoryFinder;
-import org.opengis.filter.FilterFactory;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.opengis.referencing.operation.TransformException;
 import org.trajectory.clustering.Line;
@@ -729,7 +726,10 @@ public class KelpFusion {
             return lineSet.get(point2.getTweetID() + "," + point1.getTweetID());
         } else { //if line does not exist for both ID combinations
             //creates a new line and return
-            lineSet.put(point1.getTweetID() + "," + point2.getTweetID(), new Line(1, point1, point2));
+            Line line = new Line(1, point1, point2);
+            point1.addConnectingLine(line);
+            point2.addConnectingLine(line);
+            lineSet.put(point1.getTweetID() + "," + point2.getTweetID(), line);
             return lineSet.get(point1.getTweetID() + "," + point2.getTweetID());
         }
     }
@@ -743,9 +743,15 @@ public class KelpFusion {
      */
     private boolean removeFromLineSet(TrajectoryPoint point1, TrajectoryPoint point2) {
         if (lineSet.containsKey(point1.getTweetID() + "," + point2.getTweetID())) {
+            Line line = lineSet.get(point1.getTweetID() + "," + point2.getTweetID());
+            point1.removeConnectingLine(line);
+            point2.removeConnectingLine(line);
             lineSet.remove(point1.getTweetID() + "," + point2.getTweetID());
             return true;
         } else if (lineSet.containsKey(point2.getTweetID() + "," + point1.getTweetID())) {
+            Line line = lineSet.get(point2.getTweetID() + "," + point1.getTweetID());
+            point1.removeConnectingLine(line);
+            point2.removeConnectingLine(line);
             lineSet.remove(point2.getTweetID() + "," + point1.getTweetID());
             return true;
         } else {
