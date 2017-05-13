@@ -1182,6 +1182,46 @@ public class KelpFusion {
             }
             return false;
         }
+
+        public boolean isThereCheckedGeometryIntersecting(Geometry gabrielNeighbourhood) {
+            List candidates = query(gabrielNeighbourhood);
+            for (Iterator it = candidates.iterator(); it.hasNext(); ) {
+                PreparedGeometry prepGeom = (PreparedGeometry) it.next();
+                if (prepGeom.getGeometry().getUserData() != null
+                        && prepGeom.intersects(gabrielNeighbourhood)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public boolean isThereAddedGeometryIntersecting(Geometry gabrielNeighbourhood) {
+            List candidates = query(gabrielNeighbourhood);
+            for (Iterator it = candidates.iterator(); it.hasNext(); ) {
+                PreparedGeometry prepGeom = (PreparedGeometry) it.next();
+                if (prepGeom.getGeometry().getUserData() != null
+                        && prepGeom.getGeometry().getUserData().equals(true)
+                        && prepGeom.intersects(gabrielNeighbourhood)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public double lengthOfLongestAddedGeometryIntersecting(Geometry gabrielNeighbourhood) {
+            List candidates = query(gabrielNeighbourhood);
+            double length = Double.MIN_VALUE;
+            for (Iterator it = candidates.iterator(); it.hasNext(); ) {
+                PreparedGeometry prepGeom = (PreparedGeometry) it.next();
+                Line line = (Line) prepGeom.getGeometry().getUserData();
+                if (line.isInSPG()
+                        && prepGeom.intersects(gabrielNeighbourhood)
+                        && line.getOrthodromicDistance() > length) {
+                    length = line.getOrthodromicDistance();
+                }
+            }
+            return (length == Double.MIN_VALUE) ? Double.MAX_VALUE : length;
+        }
     }
 
     /**
