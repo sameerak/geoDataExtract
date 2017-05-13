@@ -93,7 +93,71 @@ public class KelpFusion {
         return SPG;
     }
 
-    public ArrayList<Line> GetShortestPathGraphViaMST(ArrayList<TrajectoryPoint> pointSet, double t) throws TransformException {
+    /**
+     * Following method utilizes Heuristic 1 (below) to reduce the running time of the SPG extraction algo
+     *
+     * Heuristic 1 - for a given edge
+     * if if there are edges already added to SPG with in gabriel neighbourhood from both sides
+     * then this edge can be excluded from SPG calculation
+     *
+     */
+    public ArrayList<Line> GetShortestPathGraphWithHeuristic(ArrayList<TrajectoryPoint> pointSet, double t) throws TransformException {
+        //Note: lines in G should be sorted in length ascending order
+        System.out.println("started SPG calculation !!!!!!!!!!!!!!");
+        if (G == null) {
+//            G = createReachabilityGraph(pointSet); // this is suggested by original paper , Cost = O(n^2)
+            // as creation of reachability graph takes long time for tweet data
+            // We are using Delaunay Triangulation  , Cost = O(n*lg(n))
+            G = createDelaunayGraph(pointSet);
+        }
+        System.out.println("G calculation FINISHED !!!!!!!!!!!!!! G.size = " + G.size());
+
+        //if there is a already created SPG
+        if (SPG != null) {
+            if (previousT == t) {
+                return SPG; //return it
+            } else {
+                for (Line gLine: SPG) {
+                    gLine.removeConnections();
+                }
+            }
+        }
+
+        previousT = t;
+        SPG = new ArrayList<>();
+
+        //implements shortest path graph creation from KelpFusion paper
+        int progress = 0,added = 0, skipped = 0;
+        for (Line gLine: G) {
+            ++progress;
+            if (!isEligibleForSPGCalculation(gLine, 1)) {
+                //then set gline user data to not added
+                gLine.setCheckedForSPG(true);
+                gLine.setInSPG(false);
+                ++skipped;
+                continue; //skip this line
+            } //else
+            ArrayList<Line> shortestPathFromSPG = getShortestPath(gLine, SPG, true);
+            double length = gLine.getOrthodromicDistance();
+            if (shortestPathFromSPG == null
+                    || getPathWeight(shortestPathFromSPG, true) >= Math.pow(length, t)) {
+                gLine.setWeight(Math.pow(length, t));
+            gLine.addConnection();
+            SPG.add(gLine);
+            gLine.setCheckedForSPG(true);
+            gLine.setInSPG(true);
+            ++added;
+            }
+//            System.out.println("########### Progress = " + progress + "/" + G.size() + ", added = " + added);
+        }
+        System.out.println("########### Progress = " + progress + "/" + G.size()
+                + ", added = " + added + ", skipped = " + skipped);
+        System.out.println("SPG calculation FINISHED !!!!!!!!!!!!!!");
+
+        return SPG;
+    }
+
+    public ArrayList<Line> GetShortestPathGraphViaMST(ArrayList<TrajectoryPoint> pointSet, double t, int heuristicNo) throws TransformException {
         //create delaunay graph
         System.out.println("started SPG calculation Via MST !!!!!!!!!!!!!!");
         if (G == null) {
@@ -215,10 +279,10 @@ public class KelpFusion {
 
         for (Line gLine: notInMST) {
             ++progress;
-            Geometry gabrielNeighbourhood = createCircle(gLine.getCenterPointCoordinate(), gLine.getLength());
+//            Geometry gabrielNeighbourhood = createCircle(gLine.getCenterPointCoordinate(), gLine.getLength());
             //if there is a edge with in the gabriel neighbourhood of gline which is not added
 //            if (preparedGeometryIndex.isThereShorterNotAddedGeometryIntersecting(gabrielNeighbourhood)) {
-            if (!isEligibleForSPGCalculation(gLine)) {
+            if (!isEligibleForSPGCalculation(gLine, heuristicNo)) {
                 //then set gline user data to not added
                 gLine.getGeometry().setUserData(false);
                 gLine.setCheckedForSPG(true);
@@ -227,12 +291,8 @@ public class KelpFusion {
                 ++skipped;
                 continue;
             }
-            //else
-            ArrayList<Line> shortestPathFromSPG = getShortestPath(gLine, SPG, true); //uses dijkstra's algorithm
-//            ArrayList<Line> shortestPathFromSPG = getShortestPathAStar(gLine, SPG, t); //uses modified A* algo
-            double length = gLine.getOrthodromicDistance();
-            if (shortestPathFromSPG == null || getPathWeight(shortestPathFromSPG, true) >= Math.pow(length, t)) {
-                gLine.setWeight(Math.pow(length, t));
+            if (heuristicNo == 3) {
+                gLine.setWeight(Math.pow(gLine.getOrthodromicDistance(), t));
                 gLine.addConnection();
                 SPG.add(gLine);
                 //then set gline user data to added
@@ -240,11 +300,25 @@ public class KelpFusion {
                 gLine.setCheckedForSPG(true);
                 gLine.setInSPG(true);
                 ++added;
-            } else {
-                //then set gline user data to not added
-                gLine.getGeometry().setUserData(false);
-                gLine.setCheckedForSPG(true);
-                gLine.setInSPG(false);
+            }
+            if (heuristicNo == 2) {
+                ArrayList<Line> shortestPathFromSPG = getShortestPath(gLine, SPG, true); //uses dijkstra's algorithm
+                double length = gLine.getOrthodromicDistance();
+                if (shortestPathFromSPG == null || getPathWeight(shortestPathFromSPG, true) >= Math.pow(length, t)) {
+                    gLine.setWeight(Math.pow(length, t));
+                    gLine.addConnection();
+                    SPG.add(gLine);
+                    //then set gline user data to added
+                    gLine.getGeometry().setUserData(true);
+                    gLine.setCheckedForSPG(true);
+                    gLine.setInSPG(true);
+                    ++added;
+                } else {
+                    //then set gline user data to not added
+                    gLine.getGeometry().setUserData(false);
+                    gLine.setCheckedForSPG(true);
+                    gLine.setInSPG(false);
+                }
             }
         }
         System.out.println("########### Progress = " + progress + "/" + notInMST.size() + ", added = " + added
@@ -254,7 +328,7 @@ public class KelpFusion {
         return SPG;
     }
 
-    private boolean isEligibleForSPGCalculation(Line delaunayEdge) throws TransformException {
+    private boolean isEligibleForSPGCalculation(Line delaunayEdge, int heuristicNo) throws TransformException {
         TrajectoryPoint[] endPoints = delaunayEdge.getEndPoints();
         HashSet<Line> connectingLines0 = endPoints[0].getConnectingLines();
         HashSet<Line> connectingLines1 = endPoints[1].getConnectingLines();
@@ -294,15 +368,40 @@ public class KelpFusion {
             }
         }
 
-        if (added0 && added1) {
-            //if there are added edges with in gabriel neighbourhood from both sides
-            return false;
-        }else if (rejected0 || rejected1) {
-            //if there are rejected edges with in gabriel neighbourhood from any sides
-            return false;
+        switch (heuristicNo) {//TODO need to improve to check if both added lines are in same side of edge
+            case 1 :
+                if (added0 && added1) {
+                    //if there are added edges with in gabriel neighbourhood from both sides
+                    return false;
+                } else {
+                    return true;
+                }
+            case 2 :
+                if (added0 && added1) {
+                    //if there are added edges with in gabriel neighbourhood from both sides
+                    return false;
+                }else if (rejected0 || rejected1) {
+                    //if there are rejected edges with in gabriel neighbourhood from any sides
+                    return false;
+                } else {
+                    return true;
+                }
+            case 3 :
+                if (added0 && added1) {
+                    //if there are added edges with in gabriel neighbourhood from both sides
+                    return false;
+                } /*else if (added0 || added1) {
+                    //if there are added edges with in gabriel neighbourhood from only one side
+                    return true;
+                }*/ else if (rejected0 || rejected1) {
+                    //if there are rejected edges with in gabriel neighbourhood from any sides
+                    return false;
+                }else {
+                    return true;
+                }
+            default:
+                return true;
         }
-
-        return true;
     }
 
     private boolean withInGabrielNeighbourhood(Line delaunayEdge, Line line) throws TransformException {
