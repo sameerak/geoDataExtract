@@ -335,8 +335,8 @@ public class KelpFusion {
         ArrayList<Line> addedEdgesGN0 = new ArrayList<>();
         ArrayList<Line> addedEdgesGN1 = new ArrayList<>();
 
-        boolean added0 = false, rejected0 = false,
-                added1 = false, rejected1 = false,
+        boolean rejected0 = false,
+                rejected1 = false,
                 addedLineOnSameSide = false;
 
         for (Line line : connectingLines0) {
@@ -344,7 +344,6 @@ public class KelpFusion {
                 //check if there are added lines with in gabriel neighbourhood of delaunayLine
                 if (line.isInSPG()) {
                     addedEdgesGN0.add(line);
-                    added0 = true;
                 } else {
                     //check if there are rejected lines with in gabriel neighbourhood of delaunayLine
                     rejected0 = true;
@@ -357,7 +356,6 @@ public class KelpFusion {
                 //check if there are added lines with in gabriel neighbourhood of delaunayLine
                 if (line.isInSPG()) {
                     addedEdgesGN1.add(line);
-                    added1 = true;
                 } else {
                     //check if there are rejected lines with in gabriel neighbourhood of delaunayLine
                     rejected1 = true;
@@ -408,8 +406,9 @@ public class KelpFusion {
                 return !addedLineOnSameSide;
                 //else true (line needs to be checked with SPG calculation)
             case 2 :
-                if (added0 && added1) {
+                if (addedLineOnSameSide) {
                     //if there are added edges with in gabriel neighbourhood from both sides
+                    // on the same side of the edge
                     return false;
                 }else if (rejected0 || rejected1) {
                     //if there are rejected edges with in gabriel neighbourhood from any sides
@@ -418,8 +417,9 @@ public class KelpFusion {
                     return true;
                 }
             case 3 :
-                if (added0 && added1) {
+                if (addedLineOnSameSide) {
                     //if there are added edges with in gabriel neighbourhood from both sides
+                    // on the same side of the edge
                     return false;
                 } /*else if (added0 || added1) {
                     //if there are added edges with in gabriel neighbourhood from only one side
