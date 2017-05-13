@@ -332,14 +332,18 @@ public class KelpFusion {
         TrajectoryPoint[] endPoints = delaunayEdge.getEndPoints();
         HashSet<Line> connectingLines0 = endPoints[0].getConnectingLines();
         HashSet<Line> connectingLines1 = endPoints[1].getConnectingLines();
+        ArrayList<Line> addedEdgesGN0 = new ArrayList<>();
+        ArrayList<Line> addedEdgesGN1 = new ArrayList<>();
 
         boolean added0 = false, rejected0 = false,
-                added1 = false, rejected1 = false;
+                added1 = false, rejected1 = false,
+                addedLineOnSameSide = false;
 
         for (Line line : connectingLines0) {
             if (line.isCheckedForSPG() && withInGabrielNeighbourhood(delaunayEdge, line)) {
                 //check if there are added lines with in gabriel neighbourhood of delaunayLine
                 if (line.isInSPG()) {
+                    addedEdgesGN0.add(line);
                     added0 = true;
                 } else {
                     //check if there are rejected lines with in gabriel neighbourhood of delaunayLine
@@ -356,26 +360,62 @@ public class KelpFusion {
             if (line.isCheckedForSPG() && withInGabrielNeighbourhood(delaunayEdge, line)) {
                 //check if there are added lines with in gabriel neighbourhood of delaunayLine
                 if (line.isInSPG()) {
+                    addedEdgesGN1.add(line);
                     added1 = true;
                 } else {
                     //check if there are rejected lines with in gabriel neighbourhood of delaunayLine
                     rejected1 = true;
                 }
             }
+            //need to populate new arraylists completely
 
-            if (added1 && rejected1) { //if both values are set to positive
+//            if (added1 && rejected1) { //if both values are set to positive
+//                break;
+//            }
+        }
+
+        //    C    D
+        //  /       \
+        // A---------B
+        //AB is the delaunayEdge in params
+        for (Line line0 : addedEdgesGN0) {
+            //find C
+            TrajectoryPoint[] endPoints0 = line0.getEndPoints();
+
+            TrajectoryPoint C = endPoints0[0];
+
+            if (C == endPoints[0] || C == endPoints[1]) {
+                C = endPoints0[1];
+            }
+
+            for (Line line1 : addedEdgesGN1) {
+                //find D
+                TrajectoryPoint[] endPoints1 = line1.getEndPoints();
+
+                TrajectoryPoint D = endPoints1[0];
+
+                if (D == endPoints[0] || D == endPoints[1]) {
+                    D = endPoints1[1];
+                }
+
+                if (isPointClockwiseFromLine(D, delaunayEdge) == isPointClockwiseFromLine(C, delaunayEdge)) {
+                    addedLineOnSameSide = true;
+                    break;
+                }
+            }
+
+            if (addedLineOnSameSide) {
                 break;
             }
         }
 
-        switch (heuristicNo) {//TODO need to improve to check if both added lines are in same side of edge
+        switch (heuristicNo) {
             case 1 :
-                if (added0 && added1) {
-                    //if there are added edges with in gabriel neighbourhood from both sides
-                    return false;
-                } else {
-                    return true;
-                }
+                //if there are added edges with in gabriel neighbourhood from both sides
+                // on the same side of the edge
+                // then return false
+                return !addedLineOnSameSide;
+                //else true (line needs to be checked with SPG calculation)
             case 2 :
                 if (added0 && added1) {
                     //if there are added edges with in gabriel neighbourhood from both sides
