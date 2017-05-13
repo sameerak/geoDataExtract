@@ -350,10 +350,6 @@ public class KelpFusion {
                     rejected0 = true;
                 }
             }
-
-            if (added0 && rejected0) { //if both values are set to positive
-                break;
-            }
         }
 
         for (Line line : connectingLines1) {
@@ -367,14 +363,9 @@ public class KelpFusion {
                     rejected1 = true;
                 }
             }
-            //need to populate new arraylists completely
-
-//            if (added1 && rejected1) { //if both values are set to positive
-//                break;
-//            }
         }
 
-        //    C    D
+        //   C     D
         //  /       \
         // A---------B
         //AB is the delaunayEdge in params
