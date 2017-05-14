@@ -97,7 +97,10 @@ public class KelpFusion {
      * Following method utilizes Heuristic 1 (below) to reduce the running time of the SPG extraction algo
      *
      * Heuristic 1 - for a given edge
-     * if if there are edges already added to SPG with in gabriel neighbourhood from both sides
+     * if if there are edges already added to SPG
+     * with in gabriel neighbourhood
+     * from both sides
+     * and with in same side of the edge
      * then this edge can be excluded from SPG calculation
      *
      */
@@ -147,6 +150,51 @@ public class KelpFusion {
             gLine.setCheckedForSPG(true);
             gLine.setInSPG(true);
             ++added;
+            }
+//            System.out.println("########### Progress = " + progress + "/" + G.size() + ", added = " + added);
+        }
+        System.out.println("########### Progress = " + progress + "/" + G.size()
+                + ", added = " + added + ", skipped = " + skipped);
+        System.out.println("SPG calculation FINISHED !!!!!!!!!!!!!!");
+
+        return SPG;
+    }
+
+    public ArrayList<Line> GetDiversionGraph(ArrayList<TrajectoryPoint> pointSet) throws TransformException {
+        //Note: lines in G should be sorted in length ascending order
+        System.out.println("started SPG calculation !!!!!!!!!!!!!!");
+        if (G == null) {
+//            G = createReachabilityGraph(pointSet); // this is suggested by original paper , Cost = O(n^2)
+            // as creation of reachability graph takes long time for tweet data
+            // We are using Delaunay Triangulation  , Cost = O(n*lg(n))
+            G = createDelaunayGraph(pointSet);
+        }
+        System.out.println("G calculation FINISHED !!!!!!!!!!!!!! G.size = " + G.size());
+
+        //if there is a already created SPG
+        if (SPG != null) {
+                return SPG; //return it
+        }
+
+        SPG = new ArrayList<>();
+
+        //implements shortest path graph creation from KelpFusion paper
+        int progress = 0,added = 0, skipped = 0;
+        for (Line gLine: G) {
+            ++progress;
+            if (!isEligibleForSPGCalculation(gLine, 4)) {
+                //then set gline user data to not added
+                gLine.setCheckedForSPG(true);
+                gLine.setInSPG(false);
+                ++skipped;
+                continue; //skip this line
+            } else {
+                gLine.setWeight(Math.pow(gLine.getOrthodromicDistance(), 2));
+                gLine.addConnection();
+                SPG.add(gLine);
+                gLine.setCheckedForSPG(true);
+                gLine.setInSPG(true);
+                ++added;
             }
 //            System.out.println("########### Progress = " + progress + "/" + G.size() + ", added = " + added);
         }
@@ -334,31 +382,46 @@ public class KelpFusion {
         HashSet<Line> connectingLines1 = endPoints[1].getConnectingLines();
         ArrayList<Line> addedEdgesGN0 = new ArrayList<>();
         ArrayList<Line> addedEdgesGN1 = new ArrayList<>();
+        ArrayList<Line> allEdgesGN0 = new ArrayList<>();
+        ArrayList<Line> allEdgesGN1 = new ArrayList<>();
 
-        boolean rejected0 = false,
-                rejected1 = false,
-                addedLineOnSameSide = false;
+        boolean added0 = false, rejected0 = false,
+                added1 = false,rejected1 = false,
+                addedLineOnSameSide = false,
+                addedRejectedOnEitherSides = false;
 
         for (Line line : connectingLines0) {
-            if (line.isCheckedForSPG() && withInGabrielNeighbourhood(delaunayEdge, line)) {
-                //check if there are added lines with in gabriel neighbourhood of delaunayLine
+            if (line.isCheckedForSPG()) {
                 if (line.isInSPG()) {
-                    addedEdgesGN0.add(line);
-                } else {
-                    //check if there are rejected lines with in gabriel neighbourhood of delaunayLine
-                    rejected0 = true;
+                    added0 = true;
+                }
+                if (withInGabrielNeighbourhood(delaunayEdge, line)) {
+                    allEdgesGN0.add(line);
+                    //check if there are added lines with in gabriel neighbourhood of delaunayLine
+                    if (line.isInSPG()) {
+                        addedEdgesGN0.add(line);
+                    } else {
+                        //check if there are rejected lines with in gabriel neighbourhood of delaunayLine
+                        rejected0 = true;
+                    }
                 }
             }
         }
 
         for (Line line : connectingLines1) {
-            if (line.isCheckedForSPG() && withInGabrielNeighbourhood(delaunayEdge, line)) {
-                //check if there are added lines with in gabriel neighbourhood of delaunayLine
+            if (line.isCheckedForSPG()) {
                 if (line.isInSPG()) {
-                    addedEdgesGN1.add(line);
-                } else {
-                    //check if there are rejected lines with in gabriel neighbourhood of delaunayLine
-                    rejected1 = true;
+                    added1 = true;
+                }
+                if (withInGabrielNeighbourhood(delaunayEdge, line)) {
+                    allEdgesGN1.add(line);
+                    //check if there are added lines with in gabriel neighbourhood of delaunayLine
+                    if (line.isInSPG()) {
+                        addedEdgesGN1.add(line);
+                    } else {
+                        //check if there are rejected lines with in gabriel neighbourhood of delaunayLine
+                        rejected1 = true;
+                    }
                 }
             }
         }
@@ -367,7 +430,7 @@ public class KelpFusion {
         //  /       \
         // A---------B
         //AB is the delaunayEdge in params
-        for (Line line0 : addedEdgesGN0) {
+        /*for (Line line0 : addedEdgesGN0) {
             //find C
             TrajectoryPoint[] endPoints0 = line0.getEndPoints();
 
@@ -394,6 +457,44 @@ public class KelpFusion {
             }
 
             if (addedLineOnSameSide) {
+                break;
+            }
+        }*/
+
+        for (Line line0 : allEdgesGN0) {
+            //find C
+            TrajectoryPoint[] endPoints0 = line0.getEndPoints();
+
+            TrajectoryPoint C = endPoints0[0];
+
+            if (C == endPoints[0] || C == endPoints[1]) {
+                C = endPoints0[1];
+            }
+
+            for (Line line1 : allEdgesGN1) {
+                //find D
+                TrajectoryPoint[] endPoints1 = line1.getEndPoints();
+
+                TrajectoryPoint D = endPoints1[0];
+
+                if (D == endPoints[0] || D == endPoints[1]) {
+                    D = endPoints1[1];
+                }
+
+                if (isPointClockwiseFromLine(D, delaunayEdge) == isPointClockwiseFromLine(C, delaunayEdge)) {
+                    if (line0.isInSPG() && line1.isInSPG()) {
+                        addedLineOnSameSide = true;
+                    } else {
+                        addedRejectedOnEitherSides = true;
+                    }
+                }
+
+                if (addedLineOnSameSide && addedRejectedOnEitherSides) {
+                    break;
+                }
+            }
+
+            if (addedLineOnSameSide && addedRejectedOnEitherSides) {
                 break;
             }
         }
@@ -428,6 +529,22 @@ public class KelpFusion {
                     //if there are rejected edges with in gabriel neighbourhood from any sides
                     return false;
                 }else {
+                    return true;
+                }
+            case 4 :
+                if (addedLineOnSameSide) {
+                    //if there are added edges with in gabriel neighbourhood from both sides
+                    // on the same side of the edge
+                    return false;
+                } else if (//added0 && added1
+//                        && ((addedEdgesGN0.size() > 0 && rejected1) || (addedEdgesGN1.size() > 0 && rejected0)))
+                        addedRejectedOnEitherSides)
+                {
+                    return false;
+                } else if (rejected1 && rejected0)
+                {
+                    return false;
+                } else {
                     return true;
                 }
             default:
