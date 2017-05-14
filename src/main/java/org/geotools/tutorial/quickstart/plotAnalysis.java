@@ -1373,6 +1373,9 @@ public class plotAnalysis {
                     case 3:
                         SPG = kelpFusion.GetShortestPathGraphViaMST(pointSet, t, 3);
                         break;
+                    case 4:
+                        SPG = kelpFusion.GetDiversionGraph(pointSet);
+                        break;
                     default:
                         SPG = kelpFusion.GetShortestPathGraph(pointSet, t);
                         break;
@@ -1846,6 +1849,9 @@ public class plotAnalysis {
                     break;
                 case 3:
                     SPG = kelpFusion.GetShortestPathGraphViaMST(pointSet, t, 3);
+                    break;
+                case 4:
+                    SPG = kelpFusion.GetDiversionGraph(pointSet);
                     break;
                 default:
                     SPG = kelpFusion.GetShortestPathGraph(pointSet, t);
