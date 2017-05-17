@@ -8,6 +8,7 @@ import com.vividsolutions.jts.geom.prep.PreparedGeometryFactory;
 import com.vividsolutions.jts.index.SpatialIndex;
 import com.vividsolutions.jts.index.strtree.STRtree;
 import com.vividsolutions.jts.util.GeometricShapeFactory;
+import com.vividsolutions.jts.util.Stopwatch;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.geometry.jts.JTSFactoryFinder;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
@@ -47,6 +48,7 @@ public class KelpFusion {
     public ArrayList<Line> GetShortestPathGraph(ArrayList<TrajectoryPoint> pointSet, double t) throws TransformException {
         //Note: lines in G should be sorted in length ascending order
         System.out.println("started SPG calculation !!!!!!!!!!!!!!");
+
         if (G == null) {
 //            G = createReachabilityGraph(pointSet); // this is suggested by original paper , Cost = O(n^2)
             // as creation of reachability graph takes long time for tweet data
@@ -69,6 +71,9 @@ public class KelpFusion {
         previousT = t;
         SPG = new ArrayList<Line>();
 
+        Stopwatch timer = new Stopwatch();
+        timer.start();
+
         //implements shortest path graph creation from KelpFusion paper
         int progress = 0,added = 0;
         for (Line gLine: G) {
@@ -87,6 +92,10 @@ public class KelpFusion {
             ++progress;
 //            System.out.println("########### Progress = " + progress + "/" + G.size() + ", added = " + added);
         }
+
+        timer.stop();
+        System.out.println("00000000000 SPG with kelpfusion method = " + timer.getTimeString());
+
         System.out.println("########### Progress = " + progress + "/" + G.size() + ", added = " + added);
         System.out.println("SPG calculation FINISHED !!!!!!!!!!!!!!");
 
@@ -106,7 +115,8 @@ public class KelpFusion {
      */
     public ArrayList<Line> GetShortestPathGraphWithHeuristic(ArrayList<TrajectoryPoint> pointSet, double t) throws TransformException {
         //Note: lines in G should be sorted in length ascending order
-        System.out.println("started SPG calculation !!!!!!!!!!!!!!");
+        System.out.println("started SPG calculation With Heuristic !!!!!!!!!!!!!!");
+
         if (G == null) {
 //            G = createReachabilityGraph(pointSet); // this is suggested by original paper , Cost = O(n^2)
             // as creation of reachability graph takes long time for tweet data
@@ -129,7 +139,10 @@ public class KelpFusion {
         previousT = t;
         SPG = new ArrayList<>();
 
-        //implements shortest path graph creation from KelpFusion paper
+        Stopwatch timer = new Stopwatch();
+        timer.start();
+
+        //implements shortest path graph creation from KelpFusion paper with a heuristic skipping function
         int progress = 0,added = 0, skipped = 0;
         for (Line gLine: G) {
             ++progress;
@@ -153,6 +166,10 @@ public class KelpFusion {
             }
 //            System.out.println("########### Progress = " + progress + "/" + G.size() + ", added = " + added);
         }
+
+        timer.stop();
+        System.out.println("11111111111 SPG With Heuristic Skipping method = " + timer.getTimeString());
+
         System.out.println("########### Progress = " + progress + "/" + G.size()
                 + ", added = " + added + ", skipped = " + skipped);
         System.out.println("SPG calculation FINISHED !!!!!!!!!!!!!!");
@@ -162,7 +179,8 @@ public class KelpFusion {
 
     public ArrayList<Line> GetDiversionGraph(ArrayList<TrajectoryPoint> pointSet) throws TransformException {
         //Note: lines in G should be sorted in length ascending order
-        System.out.println("started SPG calculation !!!!!!!!!!!!!!");
+        System.out.println("started Diversion Graph calculation !!!!!!!!!!!!!!");
+
         if (G == null) {
 //            G = createReachabilityGraph(pointSet); // this is suggested by original paper , Cost = O(n^2)
             // as creation of reachability graph takes long time for tweet data
@@ -177,6 +195,9 @@ public class KelpFusion {
         }
 
         SPG = new ArrayList<>();
+
+        Stopwatch timer = new Stopwatch();
+        timer.start();
 
         //implements shortest path graph creation from KelpFusion paper
         int progress = 0,added = 0, skipped = 0;
@@ -198,6 +219,10 @@ public class KelpFusion {
             }
 //            System.out.println("########### Progress = " + progress + "/" + G.size() + ", added = " + added);
         }
+
+        timer.stop();
+        System.out.println("44444444444 Diversion Graph method = " + timer.getTimeString());
+
         System.out.println("########### Progress = " + progress + "/" + G.size()
                 + ", added = " + added + ", skipped = " + skipped);
         System.out.println("SPG calculation FINISHED !!!!!!!!!!!!!!");
