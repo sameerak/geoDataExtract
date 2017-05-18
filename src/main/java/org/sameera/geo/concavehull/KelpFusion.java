@@ -83,7 +83,7 @@ public class KelpFusion {
 //            double length = JTS.orthodromicDistance(endpoints[0], endpoints[1], sourceCRS) * 1000;
 //            double length = gLine.getLength(); //with this value all the lengths become less than 1
             double length = gLine.getOrthodromicDistance();
-            if (shortestPathFromSPG == null || getPathWeight(shortestPathFromSPG, true) >= Math.pow(length, t)) {
+            if (shortestPathFromSPG == null || getPathWeight(shortestPathFromSPG, true) > Math.pow(length, t)) {
                 gLine.setWeight(Math.pow(length, t));
                 gLine.addConnection();
                 SPG.add(gLine);
@@ -156,7 +156,7 @@ public class KelpFusion {
             ArrayList<Line> shortestPathFromSPG = getShortestPath(gLine, SPG, true);
             double length = gLine.getOrthodromicDistance();
             if (shortestPathFromSPG == null
-                    || getPathWeight(shortestPathFromSPG, true) >= Math.pow(length, t)) {
+                    || getPathWeight(shortestPathFromSPG, true) > Math.pow(length, t)) {
                 gLine.setWeight(Math.pow(length, t));
             gLine.addConnection();
             SPG.add(gLine);
