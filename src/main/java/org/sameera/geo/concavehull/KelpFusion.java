@@ -596,7 +596,7 @@ public class KelpFusion {
 
         AC2 = Math.pow(JTS.orthodromicDistance(A.getCoordinate(), C.getCoordinate(), sourceCRS) * 1000, 2);
 
-        if (AB2 + BC2 < AC2) { //if ABC create a obtuse angle
+        if (AB2 + BC2 <= AC2) { //if ABC create a obtuse angle or a right angle
             return false;
         }
         return true;
