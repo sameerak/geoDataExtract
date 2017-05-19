@@ -1390,23 +1390,25 @@ public class plotAnalysis {
                 for (int i = 0; i < /*20*/G.size(); i++) {
                     Line partition = G.get(i);
 
-//                    Coordinate coord = new Coordinate(partition.getCenterPoint().getX(), partition.getCenterPoint().getY());
-//                    Point point = geometryFactory.createPoint(coord);
-//                    featureBuilder = new SimpleFeatureBuilder(TYPE);
-//                    featureBuilder.add(point);
-//                    featureBuilder.add("lineID = " + i);
-//                    featureBuilder.add(1);
-//                    featureBuilder.add("length = " + partition.getOrthodromicDistance());
-//                    featureBuilder.add("neighbours = " + partition.getAdjacentNeighbours()[0] + " , " +
-//                            partition.getAdjacentNeighbours()[1]);
-//                    Coordinate[] ends = partition.getCoordinates();
-//                    featureBuilder.add("endpoints = " + ends[0] + " -> " + ends[1]);
-//                    featureBuilder.add(Color.cyan);
-//                    featureBuilder.add(1);
-//                    featureBuilder.add(7);
-//
-//                    SimpleFeature feature = featureBuilder.buildFeature("line" + i);
-//                    featureCollection.add(feature);
+                    if (enableAnomaly.isSelected()) {
+                        Coordinate coord = new Coordinate(partition.getCenterPoint().getX(), partition.getCenterPoint().getY());
+                        Point point = geometryFactory.createPoint(coord);
+                        featureBuilder = new SimpleFeatureBuilder(TYPE);
+                        featureBuilder.add(point);
+                        featureBuilder.add("lineID = " + i);
+                        featureBuilder.add(1);
+                        featureBuilder.add("length = " + partition.getOrthodromicDistance());
+                        featureBuilder.add("neighbours = " + partition.getAdjacentNeighbours()[0] + " , " +
+                                partition.getAdjacentNeighbours()[1]);
+                        Coordinate[] ends = partition.getCoordinates();
+                        featureBuilder.add("endpoints = " + ends[0] + " -> " + ends[1]);
+                        featureBuilder.add(Color.cyan);
+                        featureBuilder.add(1);
+                        featureBuilder.add(7);
+
+                        SimpleFeature feature = featureBuilder.buildFeature("line" + i);
+                        featureCollection.add(feature);
+                    }
 
                     SimpleFeature linefeature = getLineFeatureByCoord(partition.getCoordinates());
                     lineCollection1.add(linefeature);
@@ -1906,24 +1908,26 @@ public class plotAnalysis {
             for (int i = 0; i < /*20*/G.size(); i++) {
                 Line partition = G.get(i);
 
-//                Coordinate coord = new Coordinate(partition.getCenterPoint().getX(), partition.getCenterPoint().getY());
-//                Point point = geometryFactory.createPoint(coord);
-//                featureBuilder = new SimpleFeatureBuilder(TYPE);
-//                featureBuilder.add(point);
-//                featureBuilder.add("lineID = " + i);
-//                featureBuilder.add(Color.BLACK);
-//                featureBuilder.add(1);
-//                featureBuilder.add("length = " + partition.getOrthodromicDistance());
-//                featureBuilder.add("neighbours = " + partition.getAdjacentNeighbours()[0] + " , " +
-//                        partition.getAdjacentNeighbours()[1]);
-//                Coordinate[] ends = partition.getCoordinates();
-//                featureBuilder.add("endpoints = " + ends[0] + " -> " + ends[1]);
-//                featureBuilder.add(Color.cyan);
-//                featureBuilder.add(1);
-//                featureBuilder.add(7);
-//
-//                SimpleFeature feature = featureBuilder.buildFeature("line" + i);
-//                featureCollection.add(feature);
+                if (enableAnomaly.isSelected()) {
+                    Coordinate coord = new Coordinate(partition.getCenterPoint().getX(), partition.getCenterPoint().getY());
+                    Point point = geometryFactory.createPoint(coord);
+                    featureBuilder = new SimpleFeatureBuilder(TYPE);
+                    featureBuilder.add(point);
+                    featureBuilder.add("lineID = " + i);
+                    featureBuilder.add(Color.BLACK);
+                    featureBuilder.add(1);
+                    featureBuilder.add("length = " + partition.getOrthodromicDistance());
+                    featureBuilder.add("neighbours = " + partition.getAdjacentNeighbours()[0] + " , " +
+                            partition.getAdjacentNeighbours()[1]);
+                    Coordinate[] ends = partition.getCoordinates();
+                    featureBuilder.add("endpoints = " + ends[0] + " -> " + ends[1]);
+                    featureBuilder.add(Color.cyan);
+                    featureBuilder.add(1);
+                    featureBuilder.add(7);
+
+                    SimpleFeature feature = featureBuilder.buildFeature("line" + i);
+                    featureCollection.add(feature);
+                }
 
                 SimpleFeature linefeature = getLineFeatureByCoord(partition.getCoordinates());
                 lineCollection1.add(linefeature);
@@ -1931,9 +1935,9 @@ public class plotAnalysis {
 
             Style linestyle2 = createLineStyle(Color.red);
             clusterLayers.add(new FeatureLayer(lineCollection1, linestyle2));
-//            if (enableAnomaly.isSelected()) {
-//                map.addLayer(clusterLayers.get(0));
-//            }
+            if (enableAnomaly.isSelected()) {
+                map.addLayer(clusterLayers.get(0));
+            }
             //end of visualizing trajectory partitions
 
             //To visualize TCMM micro cluster results
