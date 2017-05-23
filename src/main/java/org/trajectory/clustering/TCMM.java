@@ -97,7 +97,7 @@ public class TCMM {
         return distance;
     }
 
-    private static double getDistance(TrajectoryPoint point, Line line) {
+    public static double getDistance(TrajectoryPoint point, Line line) {
         double a, b, c; //to hold characteristics for longer line
 
         a = line.getA();
