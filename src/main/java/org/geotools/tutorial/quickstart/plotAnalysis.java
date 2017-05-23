@@ -1168,8 +1168,9 @@ public class plotAnalysis {
             query.put("timestamp", BasicDBObjectBuilder.start("$gte", startDate.getTime()).add("$lte", endDate.getTime()).get());
             query.put("userid",  BasicDBObjectBuilder.start("$not", new BasicDBObject("$in", list)).get());
 
+            double[] coor = null;
             if (restictionsString.length >= 6) {
-                double[] coor = {Double.parseDouble(restictionsString[2]), Double.parseDouble(restictionsString[3]),
+                coor = new double[]{Double.parseDouble(restictionsString[2]), Double.parseDouble(restictionsString[3]),
                         Double.parseDouble(restictionsString[4]), Double.parseDouble(restictionsString[5])};
 
                 List<BasicDBObject> andArray = new ArrayList<BasicDBObject>();
@@ -1353,6 +1354,27 @@ public class plotAnalysis {
 //                SimpleFeature feature = featureBuilder.buildFeature("" + /*basicObject.getLong("tweet_id")*/count);
 //                featureCollection.add(feature);
                 count++;
+            }
+
+            //add boundary points
+            for (int i = 0; i < 2 && coor != null; i++) {
+                for (int j = 2; j < 4; j++) {
+                    Coordinate coord = new Coordinate(coor[i], coor[j]);
+                    Point point = geometryFactory.createPoint(coord);
+                    featureBuilder = new SimpleFeatureBuilder(TYPE);
+                    featureBuilder.add(point);
+                    featureBuilder.add("lineID = " + i);
+                    featureBuilder.add(1);
+                    featureBuilder.add("length = ");
+                    featureBuilder.add("created_at");
+                    featureBuilder.add(1);
+                    featureBuilder.add(Color.magenta);
+                    featureBuilder.add(1);
+                    featureBuilder.add(7);
+
+                    SimpleFeature feature = featureBuilder.buildFeature("boundary" + i + "," + j);
+                    featureCollection.add(feature);
+                }
             }
 
             mongoClient.close();
