@@ -207,7 +207,7 @@ public class plotAnalysis {
         userPanel.add(enableAnomaly);
         userPanel.add(new JButton(new PlotUserData()));
         userPanel.add(new JButton(new PlotWordData()));
-        userPanel.add(new JButton(new PlotDeducedTweetLocation()));
+        userPanel.add(new JButton(new PlotCustomData()));
 
         toolbar.add(userPanel);
 
@@ -1383,25 +1383,26 @@ public class plotAnalysis {
             trajectorylayer = new FeatureLayer(lineCollection, linestyle);
             map.addLayer(trajectorylayer);
 
-            if (restictionsString.length >= 6) {
+            if (restictionsString.length >= 7) {
                 ArrayList<Line> SPG;
                 switch (heuristicNo) {
                     case 1:
                         SPG = kelpFusion.GetShortestPathGraphWithHeuristic(pointSet, t);
                         break;
                     case 2:
-                        SPG = kelpFusion.GetShortestPathGraphViaMST(pointSet, t, 2);
+                        SPG = kelpFusion.GetShortestPathGraphViaSSG(pointSet, t);
                         break;
                     case 3:
-                        SPG = kelpFusion.GetShortestPathGraphViaMST(pointSet, t, 3);
+                        SPG = kelpFusion.GetSteppingStoneGraph(pointSet, t);
                         break;
                     case 4:
-                        SPG = kelpFusion.GetDiversionGraph(pointSet);
+                        SPG = kelpFusion.GetDiversionGraph(pointSet, t);
                         break;
                     default:
                         SPG = kelpFusion.GetShortestPathGraph(pointSet, t);
                         break;
                 }
+//                ArrayList<Line> SPGCorrect = kelpFusion.GetShortestPathGraph(pointSet, t);
                 ArrayList<Line> G = kelpFusion.createDelaunayGraph(pointSet);
                 DefaultFeatureCollection lineCollection1 = new DefaultFeatureCollection(),
                         lineCollection2 = new DefaultFeatureCollection();
@@ -1550,6 +1551,117 @@ public class plotAnalysis {
             return style;
         }
 
+    }
+
+    static class PlotCustomData extends SafeAction {
+
+        PlotCustomData() {
+            super("Run");
+            putValue(Action.SHORT_DESCRIPTION, "Check each geometry");
+        }
+
+        public void action(ActionEvent e) throws Throwable {
+            clearLayers();
+            String temp = coordinates.getText();
+
+            SimpleFeatureTypeBuilder b = new SimpleFeatureTypeBuilder();
+
+            b.setName("PlotUserDataFeatureType");
+            b.setCRS(DefaultGeographicCRS.WGS84);
+            b.add("location", Point.class);
+            b.add("D-Value", Double.class);
+            b.add("color", String.class);
+            b.add("size", Integer.class);
+            // building the type
+            final SimpleFeatureType TYPE = b.buildFeatureType();
+
+            SimpleFeatureBuilder featureBuilder;
+            GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+            DefaultFeatureCollection featureCollection = new DefaultFeatureCollection("internal", TYPE);
+
+            double coor = Double.parseDouble(temp); //<8.66
+            ArrayList<TrajectoryPoint> pointSet = new ArrayList<TrajectoryPoint>();
+
+//            pointSet.add(new TrajectoryPoint(0.0, 0.0, 1,1));
+//            pointSet.add(new TrajectoryPoint(4.0, 0.0, 2,2));
+//            pointSet.add(new TrajectoryPoint(4.01, 0.05, 3,3));
+//            pointSet.add(new TrajectoryPoint(-0.01, 0.1, 4,4));
+//            pointSet.add(new TrajectoryPoint(2.0, coor, 5,5));
+
+            pointSet.add(new TrajectoryPoint(0.0, 0.0, 1,1));
+            pointSet.add(new TrajectoryPoint(10.0, 0.0, 2,2));
+            pointSet.add(new TrajectoryPoint(1.0, 4.0, 3,3));
+            pointSet.add(new TrajectoryPoint(9.01, 4.01, 4,4));
+            pointSet.add(new TrajectoryPoint(5.2, coor, 5,5)); // 6.5
+
+            kelpFusion = new KelpFusion("test", map.getCoordinateReferenceSystem());
+
+            ArrayList<Line> SPG = kelpFusion.GetDiversionGraph(pointSet, 3.0);
+            ArrayList<Line> G = kelpFusion.createDelaunayGraph(pointSet);
+            kelpFusion.naivePlanarDspectrum(G);
+
+            DefaultFeatureCollection lineCollection1 = new DefaultFeatureCollection(),
+                    lineCollection2 = new DefaultFeatureCollection();
+            clusterLayers = new ArrayList<Layer>();
+
+            //To visualize trajectory partitions
+
+            for (int i = 0; i < /*20*/G.size(); i++) {
+                Line partition = G.get(i);
+
+                Coordinate coord = new Coordinate(partition.getCenterPoint().getX(), partition.getCenterPoint().getY());
+                Point point = geometryFactory.createPoint(coord);
+                featureBuilder = new SimpleFeatureBuilder(TYPE);
+                featureBuilder.add(point);
+                featureBuilder.add(partition.getMinD());
+                featureBuilder.add(Color.cyan);
+                featureBuilder.add(7);
+
+                SimpleFeature feature = featureBuilder.buildFeature("line" + i);
+                featureCollection.add(feature);
+
+                SimpleFeature linefeature = getLineFeatureByCoord(partition.getCoordinates());
+                lineCollection1.add(linefeature);
+            }
+
+            Style linestyle2 = createLineStyle(Color.red);
+            clusterLayers.add(new FeatureLayer(lineCollection1, linestyle2));
+//            if (enableAnomaly.isSelected()) {
+                map.addLayer(clusterLayers.get(0));
+//            }
+
+            for (int i = 0; i < /*20*/SPG.size(); i++) {
+                Line partition = SPG.get(i);
+
+                SimpleFeature linefeature = getLineFeatureByCoord(partition.getCoordinates());
+                lineCollection2.add(linefeature);
+            }
+
+            Style linestyle1 = createLineStyle(Color.BLUE);
+            clusterLayers.add(new FeatureLayer(lineCollection2, linestyle1));
+            map.addLayer(clusterLayers.get(1));
+
+            Style style = createGeneralPointStyle();
+            querylayer = new FeatureLayer(featureCollection, style);
+            map.addLayer(querylayer);
+
+        }
+
+        private Style createLineStyle(Color color) {
+            Style style = SLD.createLineStyle(color, 0.1F);
+            return style;
+        }
+
+        private SimpleFeature getLineFeatureByCoord(Coordinate[] coords) throws SchemaException {
+            GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+            LineString line = geometryFactory.createLineString(coords);
+            SimpleFeatureType LINETYPE = DataUtilities.createType("test", "line", "the_geom:LineString");
+            SimpleFeatureBuilder featureBuilder = new SimpleFeatureBuilder((SimpleFeatureType) LINETYPE);
+            featureBuilder.add(line);
+            SimpleFeature feature = featureBuilder.buildFeature(null);
+
+            return feature;
+        }
     }
 
     static class PlotLocationUserData extends SafeAction {
@@ -1875,7 +1987,7 @@ public class plotAnalysis {
                     SPG = kelpFusion.GetShortestPathGraphViaMST(pointSet, t, 3);
                     break;
                 case 4:
-                    SPG = kelpFusion.GetDiversionGraph(pointSet);
+                    SPG = kelpFusion.GetDiversionGraph(pointSet, t);
                     break;
                 default:
                     SPG = kelpFusion.GetShortestPathGraph(pointSet, t);
@@ -2651,5 +2763,43 @@ public class plotAnalysis {
         double longi = p1[1] - p2[1];
 
         return Math.sqrt(lat * lat + longi * longi);
+    }
+
+    /**
+     * Create a Style to draw point features
+     */
+    private static Style createGeneralPointStyle() {
+        StyleFactory styleFactory = CommonFactoryFinder.getStyleFactory();
+        FilterFactory filterFactory = CommonFactoryFinder.getFilterFactory();
+        Graphic gr = styleFactory.createDefaultGraphic();
+
+        Mark mark = styleFactory.getCircleMark();
+
+        mark.setStroke(styleFactory.createStroke(
+                filterFactory.literal(Color.BLACK), filterFactory.literal(1)));
+
+//            mark.setFill(styleFactory.createFill(filterFactory.literal(Color.MAGENTA)));
+        StyleBuilder sb = new StyleBuilder();
+        FilterFactory2 ff = sb.getFilterFactory();
+        mark.setFill(styleFactory.createFill(/*filterFactory.literal(Color.CYAN)*/
+                sb.attributeExpression("color")));
+
+        gr.graphicalSymbols().clear();
+        gr.graphicalSymbols().add(mark);
+        gr.setSize(ff.property("size"));
+
+        /*
+         * Setting the geometryPropertyName arg to null signals that we want to
+         * draw the default geomettry of features
+         */
+        PointSymbolizer sym = styleFactory.createPointSymbolizer(gr, null);
+
+        Rule rule = styleFactory.createRule();
+        rule.symbolizers().add(sym);
+        FeatureTypeStyle fts = styleFactory.createFeatureTypeStyle(new Rule[]{rule});
+        Style style = styleFactory.createStyle();
+        style.featureTypeStyles().add(fts);
+
+        return style;
     }
 }

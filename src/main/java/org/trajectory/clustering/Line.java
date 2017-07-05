@@ -17,7 +17,9 @@ public class Line implements LineInterface, Comparable<Line> {
     private int clusterID;
     private double theta, directionalTheta; // holds the angle between x axis and line
     private TrajectoryPoint centerPoint;
-    private int[] adjacentNeighbours = new int[2];
+    private int[] adjacentNeighbours = {-1, -1};
+    private double minD = Double.POSITIVE_INFINITY;
+    private TrajectoryPoint minDPoint = null;
     private int numOfNeighbours = 0;
     private Geometry geometry;
     private boolean inSPG;
@@ -187,6 +189,7 @@ public class Line implements LineInterface, Comparable<Line> {
     public void removeConnections() {
         this.inSPG = false;
         this.checkedForSPG = false;
+        this.weight = 0;
         endPoints[0].removeConnections();
         endPoints[1].removeConnections();
     }
@@ -286,5 +289,21 @@ public class Line implements LineInterface, Comparable<Line> {
 
     public void setCheckedForSPG(boolean checkedForSPG) {
         this.checkedForSPG = checkedForSPG;
+    }
+
+    public double getMinD() {
+        return minD;
+    }
+
+    public void setMinD(double minD) {
+        this.minD = minD;
+    }
+
+    public TrajectoryPoint getMinDPoint() {
+        return minDPoint;
+    }
+
+    public void setMinDPoint(TrajectoryPoint minDPoint) {
+        this.minDPoint = minDPoint;
     }
 }

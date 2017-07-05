@@ -18,6 +18,7 @@ import org.trajectory.clustering.TrajectoryPoint;
 
 import java.util.*;
 
+import static org.trajectory.clustering.TCMM.getDistance;
 import static org.trajectory.clustering.TCMM.isPointClockwiseFromLine;
 
 /**
@@ -38,6 +39,11 @@ public class KelpFusion {
     public ArrayList<Triangle> triangleList = new ArrayList<Triangle>();
     private ArrayList<TrajectoryPoint> pointSet;
     HashMap<Coordinate, TrajectoryPoint> selectedLocations;
+    long heuristic=0, spg=0;
+
+    private Triangle DT;
+    private Line DTEdge;
+    private TrajectoryPoint consideringPoint;
 
     public KelpFusion(String area,
                       CoordinateReferenceSystem sourceCRS) {
@@ -57,15 +63,16 @@ public class KelpFusion {
         }
         System.out.println("G calculation FINISHED !!!!!!!!!!!!!! G.size = " + G.size());
 
+
         //if there is a already created SPG
         if (SPG != null) {
-            if (previousT == t) {
-                return SPG; //return it
-            } else {
+//            if (previousT == t) {
+//                return SPG; //return it
+//            } else {
                 for (Line gLine: SPG) {
                     gLine.removeConnections();
                 }
-            }
+//            }
         }
 
         previousT = t;
@@ -83,7 +90,7 @@ public class KelpFusion {
 //            double length = JTS.orthodromicDistance(endpoints[0], endpoints[1], sourceCRS) * 1000;
 //            double length = gLine.getLength(); //with this value all the lengths become less than 1
             double length = gLine.getOrthodromicDistance();
-            if (shortestPathFromSPG == null || getPathWeight(shortestPathFromSPG, true) > Math.pow(length, t)) {
+            if (shortestPathFromSPG == null || getPathWeight(shortestPathFromSPG, true) >= Math.pow(length, t)) {
                 gLine.setWeight(Math.pow(length, t));
                 gLine.addConnection();
                 SPG.add(gLine);
@@ -115,6 +122,8 @@ public class KelpFusion {
      */
     public ArrayList<Line> GetShortestPathGraphWithHeuristic(ArrayList<TrajectoryPoint> pointSet, double t) throws TransformException {
         //Note: lines in G should be sorted in length ascending order
+        spg = 0;
+        heuristic = 0;
         System.out.println("started SPG calculation With Heuristic !!!!!!!!!!!!!!");
 
         if (G == null) {
@@ -127,13 +136,13 @@ public class KelpFusion {
 
         //if there is a already created SPG
         if (SPG != null) {
-            if (previousT == t) {
-                return SPG; //return it
-            } else {
+//            if (previousT == t) {
+//                return SPG; //return it
+//            } else {
                 for (Line gLine: SPG) {
                     gLine.removeConnections();
                 }
-            }
+//            }
         }
 
         previousT = t;
@@ -144,40 +153,370 @@ public class KelpFusion {
 
         //implements shortest path graph creation from KelpFusion paper with a heuristic skipping function
         int progress = 0,added = 0, skipped = 0;
+        Stopwatch timer1;
         for (Line gLine: G) {
             ++progress;
-            if (!isEligibleForSPGCalculation(gLine, 1)) {
+            if (isSafeToSkipFromSPG(gLine)) {
                 //then set gline user data to not added
                 gLine.setCheckedForSPG(true);
                 gLine.setInSPG(false);
                 ++skipped;
                 continue; //skip this line
             } //else
+//            timer1 = new Stopwatch();
+//            timer.start();
             ArrayList<Line> shortestPathFromSPG = getShortestPath(gLine, SPG, true);
             double length = gLine.getOrthodromicDistance();
             if (shortestPathFromSPG == null
-                    || getPathWeight(shortestPathFromSPG, true) > Math.pow(length, t)) {
-                gLine.setWeight(Math.pow(length, t));
+                    || getPathWeight(shortestPathFromSPG, true) >= Math.pow(length, t)) {
+            gLine.setWeight(Math.pow(length, t));
             gLine.addConnection();
             SPG.add(gLine);
             gLine.setCheckedForSPG(true);
             gLine.setInSPG(true);
             ++added;
             }
+//            timer1.stop();
+//            spg += timer1.getTime();
 //            System.out.println("########### Progress = " + progress + "/" + G.size() + ", added = " + added);
         }
 
         timer.stop();
         System.out.println("11111111111 SPG With Heuristic Skipping method = " + timer.getTimeString());
+        System.out.println("#####TIME###### spg = " + spg
+                + ", heuristic = " + heuristic);
 
         System.out.println("########### Progress = " + progress + "/" + G.size()
-                + ", added = " + added + ", skipped = " + skipped);
+                + ", added = " + added  + ", rejected = " + (progress - skipped - added) + ", skipped = " + skipped);
+        System.out.println("########### PlanarFaceDensity = " +
+                getPlanarFaceDensity(SPG.size(), selectedLocations.size()));
+        System.out.println("########### A = " + SPG.size() + "/" +selectedLocations.size() + " B = " +
+                getB(SPG.size(), selectedLocations.size()));
         System.out.println("SPG calculation FINISHED !!!!!!!!!!!!!!");
 
         return SPG;
     }
 
-    public ArrayList<Line> GetDiversionGraph(ArrayList<TrajectoryPoint> pointSet) throws TransformException {
+    private boolean isSafeToSkipFromSPG(Line DGEdge) {
+        int[] adjacentNeighbours = DGEdge.getAdjacentNeighbours();
+
+        for (int triangleID : adjacentNeighbours) {
+            if (triangleID != -1 && isCumulativeWeightSmaller(triangleID, DGEdge)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private boolean isCumulativeWeightSmaller(int triangleID, Line dgEdge) {
+        Line[] edges = triangleList.get(triangleID).getEdges();
+        double cumulativeWeight = 0;
+        for (int i = 0; i < 3; i++) {
+            if (!dgEdge.equals(edges[i])) {
+//                if (edges[i].getOrthodromicDistance() >= dgEdge.getOrthodromicDistance())
+//                    return false;
+                cumulativeWeight += Math.pow(edges[i].getOrthodromicDistance(), previousT);
+            }
+        }
+        return cumulativeWeight < Math.pow(dgEdge.getOrthodromicDistance(), previousT);
+    }
+
+    private void setDSpectrum(ArrayList<Line> DT) {
+        previousT = 2;
+        double[] minDs;
+
+        for (Line DTEdge : DT) {
+            int[] adjacentNeighbours = DTEdge.getAdjacentNeighbours();
+            minDs = new double[]{Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY};
+
+            for (int i = 0; i < 2; i++) {
+                if (adjacentNeighbours[i] == -1) {
+                    continue;
+                }
+
+                if (isCumulativeWeightSmaller(adjacentNeighbours[i], DTEdge)){
+                    minDs[i] = 2;
+                } //else if (both edges of adjacentNeighbours[i] >= DTEdge)
+                //no need to set //continue
+                else {
+                    //set DT, DTEdge, consideringPoint
+                    ArrayList<TrajectoryPoint> checkList = walkRelativeNeighborhood();
+                    if (checkList.size() > 0){
+                        //for each entry calculate D value
+                        //and select minimum of them and set it to minDs[i]
+                    }
+                }
+            }
+
+            //set minimum of minDs value to DTEdge minD
+        }
+    }
+
+    private ArrayList<TrajectoryPoint> walkRelativeNeighborhood(){
+        ArrayList<TrajectoryPoint> checkList = new ArrayList<>();
+
+        do {
+            //if considering point is with in RN of starting DTEdge
+            //then add it to check list
+
+            //if DTEdge is above Ymax
+            //then break
+
+            //if 2edges of DT that go through consideringPoint
+            //had minD set INF
+            //then break
+
+            findNextDelaunayTriangle();
+        }while (DT != null);
+
+        return checkList;
+    }
+
+    private void findNextDelaunayTriangle() {
+        //find closest point (e1) of DTEdge to consideringPoint
+
+        //select other endpoint (e2) of DTEdge
+
+        //get edge between consideringPoint and e2 (DTEdge1)
+        //set DTEdge1 to DTEdge
+
+        //Get neighboring triangle (NDT) of DTEdge1 other than DT if there is one
+        //set NDT to DT
+
+        //Find vertex (e3) of NDT not connected to DTEdge1
+        //set e3 to consideringPoint
+    }
+
+    public ArrayList<Line> GetSteppingStoneGraph(ArrayList<TrajectoryPoint> pointSet, double t) throws TransformException {
+        //Note: lines in G should be sorted in length ascending order
+        spg = 0;
+        heuristic = 0;
+        System.out.println("started SPG calculation With Heuristic !!!!!!!!!!!!!!");
+
+        Stopwatch timer = new Stopwatch();
+
+        if (G == null) {
+//            G = createReachabilityGraph(pointSet); // this is suggested by original paper , Cost = O(n^2)
+            // as creation of reachability graph takes long time for tweet data
+            // We are using Delaunay Triangulation  , Cost = O(n*lg(n))
+            G = createDelaunayGraph(pointSet);
+            //setting D-values for DT edges
+            timer.start();
+            naivePlanarDspectrum(G);
+        }
+        System.out.println("G calculation FINISHED !!!!!!!!!!!!!! G.size = " + G.size());
+
+        //if there is a already created SPG
+        if (SPG != null) {
+//            if (previousT == t) {
+//                return SPG; //return it
+//            } else {
+//            for (Line gLine: SPG) {
+//                gLine.removeConnections();
+//            }
+//            }
+        }
+
+        previousT = t;
+        SPG = new ArrayList<>();
+
+
+        //implements shortest path graph creation from KelpFusion paper with a heuristic skipping function
+        int progress = 0,added = 0, skipped = 0;
+        Stopwatch timer1;
+        for (Line gLine: G) {
+            ++progress;
+            if (gLine.getMinD() <= t) {
+                //then set gline user data to not added
+                gLine.setCheckedForSPG(true);
+                gLine.setInSPG(false);
+                ++skipped;
+                continue; //skip this line
+            } //else
+//            timer1 = new Stopwatch();
+//            timer.start();
+            else {
+                SPG.add(gLine);
+                gLine.setCheckedForSPG(true);
+                gLine.setInSPG(true);
+                ++added;
+            }
+//            timer1.stop();
+//            spg += timer1.getTime();
+//            System.out.println("########### Progress = " + progress + "/" + G.size() + ", added = " + added);
+        }
+
+        timer.stop();
+        System.out.println("33333333333 Stepping Stone Graph = " + timer.getTimeString());
+        System.out.println("#####TIME###### spg = " + spg
+                + ", heuristic = " + heuristic);
+
+        System.out.println("########### Progress = " + progress + "/" + G.size()
+                + ", added = " + added  + ", rejected = " + (progress - skipped - added) + ", skipped = " + skipped);
+        System.out.println("########### PlanarFaceDensity = " +
+                getPlanarFaceDensity(SPG.size(), selectedLocations.size()));
+        System.out.println("########### A = " + SPG.size() + "/" +selectedLocations.size() + " B = " +
+                getB(SPG.size(), selectedLocations.size()));
+        System.out.println("SPG calculation FINISHED !!!!!!!!!!!!!!");
+
+        return SPG;
+    }
+
+    /**
+     * Following method utilizes Heuristic 2 (below) to reduce the running time of the SPG extraction algo
+     *
+     * Heuristic 2 - for a given edge
+     * if its D-value < t
+     * then that edge can be excluded from SPG calculation
+     *
+     */
+    public ArrayList<Line> GetShortestPathGraphViaSSG(ArrayList<TrajectoryPoint> pointSet, double t) throws TransformException {
+        //Note: lines in G should be sorted in length ascending order
+        spg = 0;
+        heuristic = 0;
+        System.out.println("started SPG calculation With Heuristic !!!!!!!!!!!!!!");
+
+        if (G == null) {
+//            G = createReachabilityGraph(pointSet); // this is suggested by original paper , Cost = O(n^2)
+            // as creation of reachability graph takes long time for tweet data
+            // We are using Delaunay Triangulation  , Cost = O(n*lg(n))
+            G = createDelaunayGraph(pointSet);
+            //setting D-values for DT edges
+            naivePlanarDspectrum(G);
+        }
+        System.out.println("G calculation FINISHED !!!!!!!!!!!!!! G.size = " + G.size());
+
+        //if there is a already created SPG
+        if (SPG != null) {
+//            if (previousT == t) {
+//                return SPG; //return it
+//            } else {
+            for (Line gLine: SPG) {
+                gLine.removeConnections();
+            }
+//            }
+        }
+
+        previousT = t;
+        SPG = new ArrayList<>();
+
+        Stopwatch timer = new Stopwatch();
+        timer.start();
+
+        //implements shortest path graph creation from KelpFusion paper with a heuristic skipping function
+        int progress = 0,added = 0, skipped = 0;
+        Stopwatch timer1;
+        for (Line gLine: G) {
+            ++progress;
+            if (gLine.getMinD() < t) {
+                //then set gline user data to not added
+                gLine.setCheckedForSPG(true);
+                gLine.setInSPG(false);
+                ++skipped;
+                continue; //skip this line
+            } //else
+//            timer1 = new Stopwatch();
+//            timer.start();
+            ArrayList<Line> shortestPathFromSPG = getShortestPath(gLine, SPG, true);
+            double length = gLine.getOrthodromicDistance();
+            if (shortestPathFromSPG == null
+                    || getPathWeight(shortestPathFromSPG, true) >= Math.pow(length, t)) {
+                gLine.setWeight(Math.pow(length, t));
+                gLine.addConnection();
+                SPG.add(gLine);
+                gLine.setCheckedForSPG(true);
+                gLine.setInSPG(true);
+                ++added;
+            }
+//            timer1.stop();
+//            spg += timer1.getTime();
+//            System.out.println("########### Progress = " + progress + "/" + G.size() + ", added = " + added);
+        }
+
+        timer.stop();
+        System.out.println("22222222222 SPG With SSG D-value Skipping method = " + timer.getTimeString());
+        System.out.println("#####TIME###### spg = " + spg
+                + ", heuristic = " + heuristic);
+
+        System.out.println("########### Progress = " + progress + "/" + G.size()
+                + ", added = " + added  + ", rejected = " + (progress - skipped - added) + ", skipped = " + skipped);
+        System.out.println("########### PlanarFaceDensity = " +
+                getPlanarFaceDensity(SPG.size(), selectedLocations.size()));
+        System.out.println("########### A = " + SPG.size() + "/" +selectedLocations.size() + " B = " +
+                getB(SPG.size(), selectedLocations.size()));
+        System.out.println("SPG calculation FINISHED !!!!!!!!!!!!!!");
+
+        return SPG;
+    }
+
+    public void naivePlanarDspectrum(ArrayList<Line> DT) throws TransformException {
+        Set<Coordinate> coordinates = selectedLocations.keySet();
+
+        for (Line DTEdge : DT) {
+            Coordinate[] endpoints = DTEdge.getCoordinates();
+            Double[] distanceToEndPoints = new Double[2];
+            Double[] orthodomicDistanceToEndPoints = new Double[2];
+
+            for (Coordinate coordinate : coordinates) {
+                distanceToEndPoints[0] = coordinate.distance(endpoints[0]);
+                distanceToEndPoints[1] = coordinate.distance(endpoints[1]);
+
+                if (distanceToEndPoints[0] < DTEdge.getLength() && distanceToEndPoints[1] < DTEdge.getLength()) {
+                    orthodomicDistanceToEndPoints[0] = JTS.orthodromicDistance(endpoints[0],
+                            coordinate, sourceCRS) * 1000;
+                    orthodomicDistanceToEndPoints[1] = JTS.orthodromicDistance(endpoints[1],
+                            coordinate, sourceCRS) * 1000;
+
+                    if (orthodomicDistanceToEndPoints[0] < DTEdge.getOrthodromicDistance() &&
+                            orthodomicDistanceToEndPoints[1] < DTEdge.getOrthodromicDistance()) {
+                        Double newD = solveForD(DTEdge.getOrthodromicDistance(),
+                                orthodomicDistanceToEndPoints[0], orthodomicDistanceToEndPoints[1]);
+                        if (DTEdge.getMinD() > newD) {
+                            DTEdge.setMinD(newD);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public static double solveForD(double l, double p, double q) {
+        //throw exception if triangle inequality is not satisfied
+
+        double D = 5, previousLowD = 1, previousHighD = 10;
+        double lD = Math.pow(l,D), pD = Math.pow(p, D) + Math.pow(q, D);
+
+        //try finding upper bound for D-value
+        while (lD < pD){
+            previousLowD = D;
+            D += 5;
+            previousHighD = D + 5;
+
+            lD = Math.pow(l,D);
+            pD = Math.pow(p, D) + Math.pow(q, D);
+        }
+
+//        System.out.println("low = " + previousLowD + ", D = " + D + ", high = " + previousHighD );
+        //Do binary search to find the exact D-value Math.abs(lD - pD)
+        while ((previousHighD - previousLowD) > 0.00001) {
+            if (lD > pD) {
+                previousHighD = D;
+                D = (D + previousLowD) / 2;
+            } else {
+                previousLowD = D;
+                D = (D + previousHighD) / 2;
+            }
+//            System.out.println("low = " + previousLowD + ", D = " + D + ", high = " + previousHighD );
+
+            lD = Math.pow(l,D);
+            pD = Math.pow(p, D) + Math.pow(q, D);
+        }
+
+        return D;
+    }
+
+    public ArrayList<Line> GetDiversionGraph(ArrayList<TrajectoryPoint> pointSet, double d) throws TransformException {
         //Note: lines in G should be sorted in length ascending order
         System.out.println("started Diversion Graph calculation !!!!!!!!!!!!!!");
 
@@ -190,10 +529,11 @@ public class KelpFusion {
         System.out.println("G calculation FINISHED !!!!!!!!!!!!!! G.size = " + G.size());
 
         //if there is a already created SPG
-        if (SPG != null) {
-                return SPG; //return it
-        }
+//        if (SPG != null) {
+//                return SPG; //return it
+//        }
 
+        previousT = d;
         SPG = new ArrayList<>();
 
         Stopwatch timer = new Stopwatch();
@@ -203,18 +543,19 @@ public class KelpFusion {
         int progress = 0,added = 0, skipped = 0;
         for (Line gLine: G) {
             ++progress;
-            if (!isEligibleForSPGCalculation(gLine, 4)) {
+//            if (!isEligibleForSPGCalculation(gLine, 4)) {
+            if (isSafeToSkipFromSPG(gLine)) {
                 //then set gline user data to not added
-                gLine.setCheckedForSPG(true);
-                gLine.setInSPG(false);
+//                gLine.setCheckedForSPG(true);
+//                gLine.setInSPG(false);
                 ++skipped;
                 continue; //skip this line
             } else {
-                gLine.setWeight(Math.pow(gLine.getOrthodromicDistance(), 2));
-                gLine.addConnection();
+//                gLine.setWeight(Math.pow(gLine.getOrthodromicDistance(), 2));
+//                gLine.addConnection();
                 SPG.add(gLine);
-                gLine.setCheckedForSPG(true);
-                gLine.setInSPG(true);
+//                gLine.setCheckedForSPG(true);
+//                gLine.setInSPG(true);
                 ++added;
             }
 //            System.out.println("########### Progress = " + progress + "/" + G.size() + ", added = " + added);
@@ -402,6 +743,8 @@ public class KelpFusion {
     }
 
     private boolean isEligibleForSPGCalculation(Line delaunayEdge, int heuristicNo) throws TransformException {
+//        Stopwatch timer = new Stopwatch();
+//        timer.start();
         TrajectoryPoint[] endPoints = delaunayEdge.getEndPoints();
         HashSet<Line> connectingLines0 = endPoints[0].getConnectingLines();
         HashSet<Line> connectingLines1 = endPoints[1].getConnectingLines();
@@ -413,7 +756,16 @@ public class KelpFusion {
         boolean added0 = false, rejected0 = false,
                 added1 = false,rejected1 = false,
                 addedLineOnSameSide = false,
-                addedRejectedOnEitherSides = false;
+                addedMeetsDistanceThreshold = false,
+                rejectedMeetsDistanceThreshold = false,
+                addedRejectedOnEitherSides = false,
+                addedRejectedOnSameSides = false,
+                RejectedOnSameSides = false,
+                addedRejectedMeetsDistanceThreshold = false,
+                RejectedOnSameSidMeetsDistanceThreshold = false,
+                meetsCompare = false;
+
+        double AB2, AC2, BD2, CLAB, DLAB, alpha, beta, compare;
 
         for (Line line : connectingLines0) {
             if (line.isCheckedForSPG()) {
@@ -507,30 +859,95 @@ public class KelpFusion {
                 }
 
                 if (isPointClockwiseFromLine(D, delaunayEdge) == isPointClockwiseFromLine(C, delaunayEdge)) {
+                    //if lines are on the same side
+                    AB2 = Math.pow(delaunayEdge.getOrthodromicDistance(), 2);
+                    AC2 = Math.pow(line0.getOrthodromicDistance(), 2);
+                    BD2 = Math.pow(line1.getOrthodromicDistance(), 2);
+
+                    compare = Math.pow(
+                            JTS.orthodromicDistance(C.getCoordinate(), D.getCoordinate(), sourceCRS) * 1000, previousT)
+                            + Math.pow(line0.getOrthodromicDistance(), previousT)
+                            + Math.pow(line1.getOrthodromicDistance(), previousT);
+
+                    CLAB = getDistance(C, delaunayEdge);
+                    DLAB = getDistance(D, delaunayEdge);
+
+                    alpha = Math.toDegrees(Math.asin(CLAB/line0.getLength()));
+                    beta = Math.toDegrees(Math.asin(DLAB/line1.getLength()));
                     if (line0.isInSPG() && line1.isInSPG()) {
                         addedLineOnSameSide = true;
+
+                        if (AB2 >= AC2 + BD2 && alpha + beta <= 90) { //if A(C=D)B create a obtuse angle or a right angle
+                            addedMeetsDistanceThreshold = true;
+                        }
+                    } else if (line0.isInSPG() || line1.isInSPG()) {
+                        addedRejectedOnSameSides = true;
+
+                        if (AB2 >= AC2 + BD2 && alpha + beta <= 90) { //if A(C=D)B create a obtuse angle or a right angle
+                            addedRejectedMeetsDistanceThreshold = true;
+                        }
                     } else {
-                        addedRejectedOnEitherSides = true;
+                        RejectedOnSameSides = true;
+
+                        if (AB2 >= AC2 + BD2 && alpha + beta <= 90) { //if A(C=D)B create a obtuse angle or a right angle
+                            RejectedOnSameSidMeetsDistanceThreshold = true;
+                        }
+                    }
+
+                    if (alpha < 90 && beta < 90 &&
+                            compare < Math.pow(delaunayEdge.getOrthodromicDistance(), previousT)) {
+                        meetsCompare = true;
+                    }
+                }else {
+                    addedRejectedOnEitherSides = true;
+                    AB2 = Math.pow(delaunayEdge.getOrthodromicDistance(), 2);
+                    AC2 = Math.pow(line0.getOrthodromicDistance(), 2);
+                    BD2 = Math.pow(line1.getOrthodromicDistance(), 2);
+
+                    if (AB2 >= AC2 + BD2) { //if A(C=D)B create a obtuse angle or a right angle
+                        rejectedMeetsDistanceThreshold = true;
                     }
                 }
 
-                if (addedLineOnSameSide && addedRejectedOnEitherSides) {
-                    break;
-                }
+//                if (addedLineOnSameSide && addedRejectedOnEitherSides
+//                        && addedMeetsDistanceThreshold && rejectedMeetsDistanceThreshold) {
+//                    break;
+//                }
             }
 
-            if (addedLineOnSameSide && addedRejectedOnEitherSides) {
-                break;
-            }
+//            if (addedLineOnSameSide && addedRejectedOnEitherSides
+//                    && addedMeetsDistanceThreshold && rejectedMeetsDistanceThreshold) {
+//                break;
+//            }
         }
+//        timer.stop();
+//        heuristic += timer.getTime();
 
         switch (heuristicNo) {
             case 1 :
                 //if there are added edges with in gabriel neighbourhood from both sides
                 // on the same side of the edge
                 // then return false
-                return !addedLineOnSameSide;
+//                return !(addedLineOnSameSide && addedMeetsDistanceThreshold);
                 //else true (line needs to be checked with SPG calculation)
+                /*if (addedLineOnSameSide && addedMeetsDistanceThreshold) {
+                    //if there are added edges with in gabriel neighbourhood from both sides
+                    // on the same side of the edge
+                    return false;
+                } else if (//added0 && added1
+    //                        && ((addedEdgesGN0.size() > 0 && rejected1) || (addedEdgesGN1.size() > 0 && rejected0)))
+                        addedRejectedOnSameSides && addedRejectedMeetsDistanceThreshold)
+                {
+                    return false;
+                } else if (RejectedOnSameSides && RejectedOnSameSidMeetsDistanceThreshold)
+                {
+                    return false;
+                } else*/ if (meetsCompare)
+                {
+                    return false;
+                } else {
+                    return true;
+                }
             case 2 :
                 if (addedLineOnSameSide) {
                     //if there are added edges with in gabriel neighbourhood from both sides
@@ -557,21 +974,22 @@ public class KelpFusion {
                     return true;
                 }
             case 4 :
-                if (addedLineOnSameSide) {
+                /*if (addedLineOnSameSide && addedMeetsDistanceThreshold) {
                     //if there are added edges with in gabriel neighbourhood from both sides
                     // on the same side of the edge
                     return false;
                 } else if (//added0 && added1
-//                        && ((addedEdgesGN0.size() > 0 && rejected1) || (addedEdgesGN1.size() > 0 && rejected0)))
-                        addedRejectedOnEitherSides)
+                    //                        && ((addedEdgesGN0.size() > 0 && rejected1) || (addedEdgesGN1.size() > 0 && rejected0)))
+                        addedRejectedOnSameSides && addedRejectedMeetsDistanceThreshold)
                 {
                     return false;
-                } else if (rejected1 && rejected0)
+                } else if (RejectedOnSameSides && RejectedOnSameSidMeetsDistanceThreshold)
                 {
                     return false;
                 } else {
                     return true;
-                }
+                }*/
+                return !meetsCompare;
             default:
                 return true;
         }
@@ -876,6 +1294,8 @@ public class KelpFusion {
             }
         }
 
+        System.out.println("# of points for Delaunay graph = " + processingPoints.size());
+
         //Implementing Sweep Hull
         //1. select a x_o point randomly from x_i
         TrajectoryPoint x_o = processingPoints.get(0);
@@ -1021,7 +1441,9 @@ public class KelpFusion {
                     line = getFromLineSet(triangle.getVertices()[j], triangle.getVertices()[k]);
                     if (line.getNumOfNeighbours() > 1) {
                         int otherNeighbor = getOtherNeighbour(line.getAdjacentNeighbours(), triangle.getPos());
-                        inner_flipped = checkAndFlip(triangle, triangleList.get(otherNeighbor));
+                        if (otherNeighbor != -1) {
+                            inner_flipped = checkAndFlip(triangle, triangleList.get(otherNeighbor));
+                        }
                     }
 
                     if (inner_flipped) {
@@ -1042,6 +1464,19 @@ public class KelpFusion {
         Collections.sort(DG);
 
         return DG;
+    }
+
+    private float getPlanarFaceDensity(int numEdges, int numVertices) {
+        float up = numEdges - numVertices + 1, down = 2 * numVertices - 5;
+        float alpha = up / down;
+        return alpha;
+    }
+
+    private float getB(int numEdges, int numVertices) {
+        float edges = numEdges, vertices = numVertices;
+        float a = edges / vertices;
+        float b = 2 * a / (a - 1 + (2 / vertices));
+        return b;
     }
 
     /**
